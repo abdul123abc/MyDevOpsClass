@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VLAN vs VXLAN</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0f14;
+    --card: #16181f;
+    --border: #2a2d3a;
+    --vlan-a: #3b82f6;
+    --vlan-b: #f59e0b;
+    --vlan-c: #10b981;
+    --vxlan: #a78bfa;
+    --tunnel: #f472b6;
+    --text: #e2e5f0;
+    --muted: #6b7280;
+  }
+
+  body {
+    background: var(--bg);
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 24px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 800;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, #a78bfa, #f472b6, #38bdf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  header p {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 1rem;
+    letter-spacing: 0.5px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    width: 100%;
+    max-width: 1000px;
+  }
+
+  @media (max-width: 680px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 24px 32px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .card.vlan::before { background: linear-gradient(90deg, var(--vlan-a), var(--vlan-b), var(--vlan-c)); }
+  .card.vxlan::before { background: linear-gradient(90deg, var(--vxlan), var(--tunnel)); }
+
+  .card-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .card.vlan .card-label { color: var(--vlan-a); }
+  .card.vxlan .card-label { color: var(--vxlan); }
+
+  .card h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.8rem;
+    font-weight: 800;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+  }
+
+  .analogy-tag {
+    display: inline-block;
+    font-size: 0.78rem;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+    margin-bottom: 20px;
+  }
+  .card.vlan .analogy-tag { background: #1e3a5f; color: #93c5fd; }
+  .card.vxlan .analogy-tag { background: #2e1f4a; color: #c4b5fd; }
+
+  /* ─── VLAN DIAGRAM: single building floor ─── */
+  .building-wrap {
+    width: 100%;
+    background: #1a1d26;
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 20px;
+    border: 1px solid #2a2d3a;
+  }
+
+  .floor-label {
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-bottom: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .floor {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    border: 2px solid #2a2d3a;
+    border-radius: 10px;
+    padding: 10px;
+    background: #12141b;
+  }
+
+  .dept {
+    border-radius: 8px;
+    padding: 10px 6px;
+    text-align: center;
+    font-size: 0.7rem;
+    font-weight: 500;
+  }
+
+  .dept-a { background: rgba(59,130,246,0.15); border: 1.5px solid rgba(59,130,246,0.5); color: #93c5fd; }
+  .dept-b { background: rgba(245,158,11,0.15); border: 1.5px solid rgba(245,158,11,0.5); color: #fcd34d; }
+  .dept-c { background: rgba(16,185,129,0.15); border: 1.5px solid rgba(16,185,129,0.5); color: #6ee7b7; }
+
+  .dept-icon { font-size: 1.3rem; margin-bottom: 4px; }
+  .dept span { display: block; }
+
+  .switch-row {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .switch-box {
+    background: #232636;
+    border: 1px solid #3a3f55;
+    border-radius: 6px;
+    padding: 5px 14px;
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+
+  .wire {
+    width: 24px;
+    height: 2px;
+    background: #3a3f55;
+    border-radius: 2px;
+  }
+
+  /* wall dividers */
+  .wall-note {
+    text-align: center;
+    font-size: 0.68rem;
+    color: var(--muted);
+    margin-top: 8px;
+    font-style: italic;
+  }
+
+  /* ─── VXLAN DIAGRAM: buildings + tunnel ─── */
+  .city-wrap {
+    width: 100%;
+    background: #1a1d26;
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 20px;
+    border: 1px solid #2a2d3a;
+    position: relative;
+  }
+
+  .city-label {
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-bottom: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .buildings-row {
+    display: flex;
+    justify-content: space-around;
+    gap: 8px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .building {
+    flex: 1;
+    background: #12141b;
+    border-radius: 10px;
+    padding: 10px 6px;
+    text-align: center;
+    font-size: 0.68rem;
+    color: var(--muted);
+    border: 1.5px solid #2a2d3a;
+    position: relative;
+  }
+
+  .building-icon { font-size: 1.6rem; }
+  .building-name { font-weight: 500; font-size: 0.65rem; margin-top: 4px; color: #9ca3af; }
+  .building-city { font-size: 0.6rem; color: #4b5563; }
+
+  .tunnel-area {
+    position: relative;
+    height: 34px;
+    margin: 4px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .tunnel-line {
+    position: absolute;
+    left: 10%; right: 10%;
+    height: 12px;
+    background: linear-gradient(90deg, rgba(167,139,250,0.2), rgba(244,114,182,0.35), rgba(167,139,250,0.2));
+    border: 1.5px dashed rgba(167,139,250,0.6);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .tunnel-label {
+    font-size: 0.6rem;
+    color: #c4b5fd;
+    font-weight: 500;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    position: absolute;
+    bottom: -2px;
+    text-align: center;
+    width: 100%;
+  }
+
+  /* cloud */
+  .cloud-row {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 6px;
+  }
+
+  .cloud-box {
+    background: #1e2130;
+    border: 1px dashed #3a3f55;
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 0.68rem;
+    color: #6b7280;
+  }
+
+  .dot-lines {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 4px;
+    position: relative;
+    height: 20px;
+  }
+
+  .dot-line {
+    width: 1px;
+    height: 20px;
+    background: repeating-linear-gradient(to bottom, #3a3f55 0px, #3a3f55 4px, transparent 4px, transparent 8px);
+  }
+
+  /* ─── FACTS ─── */
+  .facts {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .fact {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    background: #1a1d26;
+    border-radius: 10px;
+    padding: 10px 12px;
+    border: 1px solid #2a2d3a;
+  }
+
+  .fact-icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .fact-text strong {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+
+  .fact-text span {
+    font-size: 0.73rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* ─── BOTTOM COMPARISON ─── */
+  .compare {
+    width: 100%;
+    max-width: 1000px;
+    margin-top: 28px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 32px;
+  }
+
+  .compare h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 18px;
+    text-align: center;
+  }
+
+  .compare-table {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr;
+    gap: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #2a2d3a;
+  }
+
+  .ct-head, .ct-cell {
+    padding: 10px 14px;
+    font-size: 0.78rem;
+    border-bottom: 1px solid #2a2d3a;
+    border-right: 1px solid #2a2d3a;
+  }
+
+  .ct-head {
+    background: #1e2130;
+    font-weight: 700;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .ct-cell:last-child, .ct-head:last-child { border-right: none; }
+  .ct-row:last-child .ct-cell { border-bottom: none; }
+  .ct-row:last-child .ct-head { border-bottom: none; }
+
+  .ct-cell.hl-vlan { color: #93c5fd; }
+  .ct-cell.hl-vxlan { color: #c4b5fd; }
+
+  .ct-row { display: contents; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 0.68rem;
+    font-weight: 600;
+  }
+  .badge-vlan { background: #1e3a5f; color: #93c5fd; }
+  .badge-vxlan { background: #2e1f4a; color: #c4b5fd; }
+
+  /* animations */
+  @keyframes pulse-tunnel {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  .tunnel-line { animation: pulse-tunnel 2.5s ease-in-out infinite; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .card, .compare { animation: fadeUp 0.6s ease both; }
+  .card:nth-child(2) { animation-delay: 0.15s; }
+  .compare { animation-delay: 0.3s; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>VLAN vs VXLAN</h1>
+  <p>An analogy-first visual breakdown for networking newcomers</p>
+</header>
+
+<div class="grid">
+
+  <!-- VLAN CARD -->
+  <div class="card vlan">
+    <div class="card-label">The Classic</div>
+    <h2>VLAN</h2>
+    <div class="analogy-tag">🏢 Dividing ONE office floor</div>
+
+    <div class="building-wrap">
+      <div class="floor-label">🏗 One physical building — one switch</div>
+      <div class="floor">
+        <div class="dept dept-a">
+          <div class="dept-icon">👩‍💼</div>
+          <span>HR</span>
+          <span style="font-size:0.6rem;color:#60a5fa;margin-top:3px">VLAN 10</span>
+        </div>
+        <div class="dept dept-b">
+          <div class="dept-icon">💻</div>
+          <span>Engineering</span>
+          <span style="font-size:0.6rem;color:#fbbf24;margin-top:3px">VLAN 20</span>
+        </div>
+        <div class="dept dept-c">
+          <div class="dept-icon">💰</div>
+          <span>Finance</span>
+          <span style="font-size:0.6rem;color:#34d399;margin-top:3px">VLAN 30</span>
+        </div>
+      </div>
+      <div class="switch-row">
+        <div class="wire"></div>
+        <div class="switch-box">🔀 ONE Switch</div>
+        <div class="wire"></div>
+      </div>
+      <div class="wall-note">Departments share the same floor but can't see each other — divided by invisible walls (tags)</div>
+    </div>
+
+    <div class="facts">
+      <div class="fact">
+        <div class="fact-icon">🏠</div>
+        <div class="fact-text">
+          <strong>Single building only</strong>
+          <span>Works within ONE physical network. Can't stretch to another building (site).</span>
+        </div>
+      </div>
+      <div class="fact">
+        <div class="fact-icon">🏷️</div>
+        <div class="fact-text">
+          <strong>Tags on packets</strong>
+          <span>Each packet gets a VLAN ID tag (like a coloured sticker) so the switch knows which floor it belongs to.</span>
+        </div>
+      </div>
+      <div class="fact">
+        <div class="fact-icon">🔢</div>
+        <div class="fact-text">
+          <strong>Max 4,094 VLANs</strong>
+          <span>Only ~4,000 "rooms" per building. Fine for a small company, tight for the cloud.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VXLAN CARD -->
+  <div class="card vxlan">
+    <div class="card-label">The Scale-Up</div>
+    <h2>VXLAN</h2>
+    <div class="analogy-tag">🌆 Tunneling across MULTIPLE cities</div>
+
+    <div class="city-wrap">
+      <div class="city-label">☁️ Internet (L3 network) — the "sky"</div>
+      <div class="cloud-row">
+        <div class="cloud-box">☁️ IP / Internet Cloud</div>
+      </div>
+      <div class="dot-lines">
+        <div class="dot-line"></div>
+        <div class="dot-line"></div>
+        <div class="dot-line"></div>
+      </div>
+      <div class="buildings-row">
+        <div class="building">
+          <div class="building-icon">🏢</div>
+          <div class="building-name">Site A</div>
+          <div class="building-city">Lagos</div>
+        </div>
+        <div class="building">
+          <div class="building-icon">🏬</div>
+          <div class="building-name">Site B</div>
+          <div class="building-city">Abuja</div>
+        </div>
+        <div class="building">
+          <div class="building-icon">🏭</div>
+          <div class="building-name">Site C</div>
+          <div class="building-city">Kano</div>
+        </div>
+      </div>
+      <div class="tunnel-area">
+        <div class="tunnel-line"></div>
+        <div class="tunnel-label">⬡ VXLAN Tunnel — Virtual L2 Overlay</div>
+      </div>
+    </div>
+
+    <div class="facts">
+      <div class="fact">
+        <div class="fact-icon">🌍</div>
+        <div class="fact-text">
+          <strong>Spans many buildings / cities</strong>
+          <span>Works across multiple physical sites, data centres, or cloud regions connected via the internet.</span>
+        </div>
+      </div>
+      <div class="fact">
+        <div class="fact-icon">📦</div>
+        <div class="fact-text">
+          <strong>Packets inside packets</strong>
+          <span>Wraps (encapsulates) L2 traffic inside UDP packets — like putting a local letter inside a courier envelope to ship it globally.</span>
+        </div>
+      </div>
+      <div class="fact">
+        <div class="fact-icon">🔢</div>
+        <div class="fact-text">
+          <strong>~16 million segments</strong>
+          <span>24-bit VNI identifier. Designed for massive cloud environments with millions of tenants.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- COMPARISON TABLE -->
+<div class="compare">
+  <h3>Side-by-side</h3>
+  <div class="compare-table">
+    <div class="ct-row">
+      <div class="ct-head">Feature</div>
+      <div class="ct-head"><span class="badge badge-vlan">VLAN</span></div>
+      <div class="ct-head"><span class="badge badge-vxlan">VXLAN</span></div>
+    </div>
+    <div class="ct-row">
+      <div class="ct-head">Analogy</div>
+      <div class="ct-cell hl-vlan">Dividers on one office floor</div>
+      <div class="ct-cell hl-vxlan">Tunnels linking multiple cities</div>
+    </div>
+    <div class="ct-row">
+      <div class="ct-head">Scope</div>
+      <div class="ct-cell hl-vlan">Single L2 network / switch</div>
+      <div class="ct-cell hl-vxlan">Across L3 networks globally</div>
+    </div>
+    <div class="ct-row">
+      <div class="ct-head">Max segments</div>
+      <div class="ct-cell hl-vlan">4,094</div>
+      <div class="ct-cell hl-vxlan">~16 million</div>
+    </div>
+    <div class="ct-row">
+      <div class="ct-head">Encapsulation</div>
+      <div class="ct-cell hl-vlan">802.1Q tag (4 bytes)</div>
+      <div class="ct-cell hl-vxlan">UDP + VXLAN header</div>
+    </div>
+    <div class="ct-row">
+      <div class="ct-head">Best for</div>
+      <div class="ct-cell hl-vlan">Small offices, campus nets</div>
+      <div class="ct-cell hl-vxlan">Data centres, cloud, Kubernetes</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

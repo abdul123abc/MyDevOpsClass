@@ -1,0 +1,1643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ethernet Broadcast Domains — From First Principles</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── RESET & ROOT ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;
+  --surface:#161b22;
+  --surface2:#1c2330;
+  --border:#30363d;
+  --border2:#21262d;
+  --text:#e6edf3;
+  --muted:#8b949e;
+  --dim:#484f58;
+  --green:#3fb950;
+  --green-bg:rgba(63,185,80,0.1);
+  --blue:#58a6ff;
+  --blue-bg:rgba(88,166,255,0.1);
+  --orange:#ffa657;
+  --orange-bg:rgba(255,166,87,0.1);
+  --red:#ff7b72;
+  --red-bg:rgba(255,123,114,0.1);
+  --yellow:#e3b341;
+  --yellow-bg:rgba(227,179,65,0.1);
+  --purple:#bc8cff;
+  --purple-bg:rgba(188,140,255,0.1);
+  --pink:#f778ba;
+  --pink-bg:rgba(247,120,186,0.1);
+  --teal:#39d0d8;
+  --teal-bg:rgba(57,208,216,0.1);
+  --accent:#58a6ff;
+  --radius:10px;
+  --font-body:'Outfit',sans-serif;
+  --font-serif:'Lora',serif;
+  --font-mono:'JetBrains Mono',monospace;
+}
+
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:16px;line-height:1.7;overflow-x:hidden}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* ── NAV ── */
+#topnav{
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  background:rgba(13,17,23,0.92);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border2);
+  display:flex;align-items:center;gap:0;
+  padding:0 16px;
+  overflow-x:auto;scrollbar-width:none;
+}
+#topnav::-webkit-scrollbar{display:none}
+#topnav a{
+  color:var(--muted);text-decoration:none;
+  font-size:0.72rem;font-weight:600;
+  letter-spacing:0.8px;text-transform:uppercase;
+  padding:14px 14px;white-space:nowrap;
+  border-bottom:2px solid transparent;
+  transition:color 0.2s,border-color 0.2s;
+}
+#topnav a:hover,#topnav a.active{color:var(--text);border-bottom-color:var(--accent)}
+#topnav .nav-logo{
+  font-family:var(--font-mono);font-size:0.8rem;
+  color:var(--green);font-weight:600;margin-right:16px;
+  padding:14px 0;white-space:nowrap;flex-shrink:0;
+}
+
+/* ── PROGRESS BAR ── */
+#progress{position:fixed;top:0;left:0;height:2px;background:var(--green);z-index:300;transition:width 0.1s}
+
+/* ── HERO ── */
+.hero{
+  min-height:100vh;display:flex;flex-direction:column;
+  justify-content:center;padding:100px 24px 60px;
+  position:relative;overflow:hidden;
+  background:radial-gradient(ellipse 80% 60% at 50% 0%, rgba(88,166,255,0.07) 0%, transparent 70%);
+}
+.hero-grid{
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(48,54,61,0.3) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(48,54,61,0.3) 1px,transparent 1px);
+  background-size:40px 40px;
+  mask-image:radial-gradient(ellipse 80% 80% at 50% 50%,black 30%,transparent 100%);
+}
+.hero-inner{max-width:860px;margin:0 auto;position:relative;text-align:center}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--green-bg);border:1px solid rgba(63,185,80,0.3);
+  color:var(--green);font-size:0.72rem;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;
+  padding:6px 14px;border-radius:20px;margin-bottom:24px;
+}
+.hero h1{
+  font-family:var(--font-serif);
+  font-size:clamp(2.2rem,6vw,4rem);
+  font-weight:700;line-height:1.15;
+  margin-bottom:20px;letter-spacing:-0.5px;
+}
+.hero h1 em{font-style:italic;color:var(--blue)}
+.hero-sub{
+  font-size:1.05rem;color:var(--muted);max-width:600px;
+  margin:0 auto 32px;line-height:1.7;
+}
+.hero-meta{
+  display:flex;justify-content:center;gap:24px;flex-wrap:wrap;
+  font-size:0.78rem;color:var(--dim);
+}
+.hero-meta span{display:flex;align-items:center;gap:6px}
+
+/* ── TOC ── */
+.toc-section{
+  max-width:860px;margin:0 auto;padding:0 24px 60px;
+}
+.toc-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:10px;margin-top:20px;
+}
+.toc-item{
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:var(--radius);padding:14px 16px;
+  text-decoration:none;color:var(--text);
+  display:flex;gap:10px;align-items:flex-start;
+  transition:border-color 0.2s,background 0.2s;
+}
+.toc-item:hover{border-color:var(--border);background:var(--surface2)}
+.toc-num{
+  font-family:var(--font-mono);font-size:0.65rem;
+  color:var(--dim);font-weight:600;flex-shrink:0;margin-top:2px;
+}
+.toc-title{font-size:0.82rem;font-weight:600;line-height:1.4}
+.toc-sub{font-size:0.7rem;color:var(--muted);margin-top:2px}
+
+/* ── MAIN CONTENT ── */
+main{max-width:860px;margin:0 auto;padding:0 24px}
+
+/* ── SECTION ── */
+.section{
+  padding:60px 0;
+  border-bottom:1px solid var(--border2);
+}
+.section:last-child{border-bottom:none}
+.section-eyebrow{
+  font-family:var(--font-mono);font-size:0.68rem;font-weight:600;
+  color:var(--green);letter-spacing:2px;text-transform:uppercase;
+  margin-bottom:8px;
+  display:flex;align-items:center;gap:8px;
+}
+.section-eyebrow::before{content:'//'}
+.section h2{
+  font-family:var(--font-serif);
+  font-size:clamp(1.7rem,3vw,2.3rem);
+  font-weight:700;line-height:1.2;margin-bottom:16px;
+  letter-spacing:-0.3px;
+}
+.lead{
+  font-size:1.05rem;color:var(--muted);
+  line-height:1.75;margin-bottom:32px;
+  border-left:3px solid var(--border);
+  padding-left:16px;
+}
+
+/* ── PROSE ── */
+.prose{font-size:0.95rem;line-height:1.8;color:#c9d1d9}
+.prose p{margin-bottom:16px}
+.prose strong{color:var(--text);font-weight:600}
+.prose em{color:var(--yellow);font-style:normal;font-weight:500}
+
+/* ── ANALOGY BOX ── */
+.analogy{
+  background:linear-gradient(135deg,rgba(88,166,255,0.06),rgba(63,185,80,0.04));
+  border:1px solid rgba(88,166,255,0.25);
+  border-radius:var(--radius);padding:20px 20px 20px 60px;
+  margin:24px 0;position:relative;font-size:0.9rem;line-height:1.7;
+}
+.analogy::before{
+  content:attr(data-emoji);
+  position:absolute;left:18px;top:18px;font-size:1.6rem;
+}
+.analogy-label{
+  font-size:0.65rem;font-weight:700;letter-spacing:2px;
+  text-transform:uppercase;color:var(--blue);margin-bottom:6px;
+}
+.analogy strong{color:var(--text)}
+
+/* ── CALLOUT ── */
+.callout{
+  border-radius:var(--radius);padding:16px 16px 16px 48px;
+  margin:20px 0;font-size:0.88rem;line-height:1.7;
+  position:relative;
+}
+.callout::before{position:absolute;left:14px;top:14px;font-size:1.1rem}
+.callout.info{background:var(--blue-bg);border-left:3px solid var(--blue)}
+.callout.info::before{content:'ℹ️'}
+.callout.warn{background:var(--yellow-bg);border-left:3px solid var(--yellow)}
+.callout.warn::before{content:'⚠️'}
+.callout.tip{background:var(--green-bg);border-left:3px solid var(--green)}
+.callout.tip::before{content:'💡'}
+.callout.key{background:var(--purple-bg);border-left:3px solid var(--purple)}
+.callout.key::before{content:'🔑'}
+.callout strong{display:block;margin-bottom:4px;font-size:0.82rem;letter-spacing:0.5px}
+
+/* ── CODE BLOCKS ── */
+.code-block{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);overflow:hidden;margin:20px 0;
+}
+.code-header{
+  background:var(--surface2);padding:10px 16px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border);
+}
+.code-title{font-family:var(--font-mono);font-size:0.72rem;color:var(--muted);font-weight:600}
+.code-lang{
+  font-family:var(--font-mono);font-size:0.65rem;
+  background:var(--border);color:var(--dim);
+  padding:2px 8px;border-radius:4px;
+}
+.code-body{
+  padding:20px;overflow-x:auto;
+  font-family:var(--font-mono);font-size:0.82rem;
+  line-height:1.7;
+}
+.code-body code{display:block;white-space:pre}
+/* syntax colors */
+.k{color:var(--red)} /* keyword */
+.f{color:var(--blue)} /* function */
+.s{color:var(--green)} /* string */
+.c{color:var(--dim);font-style:italic} /* comment */
+.v{color:var(--orange)} /* variable */
+.n{color:var(--teal)} /* number / flag */
+.cmd{color:var(--text)} /* normal command */
+.p{color:var(--purple)} /* punctuation */
+
+/* inline code */
+code{
+  font-family:var(--font-mono);font-size:0.83em;
+  background:var(--surface2);border:1px solid var(--border2);
+  color:var(--orange);padding:1px 6px;border-radius:4px;
+}
+
+/* ── COMMAND EXPLAINER ── */
+.cmd-explain{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);margin:20px 0;overflow:hidden;
+}
+.cmd-explain-header{
+  background:var(--surface2);padding:12px 16px;
+  border-bottom:1px solid var(--border);
+  font-family:var(--font-mono);font-size:0.82rem;
+  color:var(--green);display:flex;align-items:center;gap:8px;
+}
+.cmd-explain-header::before{content:'$';color:var(--dim)}
+.cmd-explain-body{padding:16px}
+.cmd-part{margin-bottom:12px;display:flex;gap:12px;align-items:flex-start}
+.cmd-part:last-child{margin-bottom:0}
+.cmd-token{
+  font-family:var(--font-mono);font-size:0.78rem;
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--orange);padding:2px 8px;border-radius:4px;
+  white-space:nowrap;flex-shrink:0;min-width:fit-content;
+}
+.cmd-token.cmd-prog{color:var(--blue)}
+.cmd-token.cmd-flag{color:var(--purple)}
+.cmd-token.cmd-arg{color:var(--green)}
+.cmd-token.cmd-val{color:var(--yellow)}
+.cmd-desc{font-size:0.82rem;color:var(--muted);line-height:1.5}
+.cmd-desc strong{color:var(--text)}
+
+/* ── DIAGRAM CONTAINERS ── */
+.diagram{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:24px;
+  margin:24px 0;
+}
+.diagram-label{
+  font-family:var(--font-mono);font-size:0.65rem;color:var(--dim);
+  text-transform:uppercase;letter-spacing:2px;
+  margin-bottom:16px;display:flex;align-items:center;gap:8px;
+}
+.diagram-label::after{content:'';flex:1;height:1px;background:var(--border2)}
+
+/* ── NODE / DEVICE visuals ── */
+.net-canvas{
+  width:100%;overflow-x:auto;
+}
+svg.net-svg{
+  display:block;overflow:visible;
+  font-family:var(--font-mono);
+}
+
+/* ── TERM CARDS ── */
+.term-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:20px 0}
+.term-card{
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:var(--radius);padding:16px;
+}
+.term-card-icon{font-size:1.8rem;margin-bottom:8px}
+.term-card h4{font-size:0.85rem;font-weight:700;margin-bottom:4px}
+.term-card p{font-size:0.78rem;color:var(--muted);line-height:1.5}
+.term-card.tc-green{border-top:2px solid var(--green)}
+.term-card.tc-blue{border-top:2px solid var(--blue)}
+.term-card.tc-orange{border-top:2px solid var(--orange)}
+.term-card.tc-purple{border-top:2px solid var(--purple)}
+.term-card.tc-teal{border-top:2px solid var(--teal)}
+
+/* ── STEP CARDS ── */
+.steps{display:flex;flex-direction:column;gap:0;margin:24px 0;position:relative}
+.steps::before{
+  content:'';position:absolute;left:19px;top:40px;bottom:40px;
+  width:1px;background:var(--border2);
+}
+.step{
+  display:flex;gap:16px;align-items:flex-start;
+  padding:16px 0;
+}
+.step-num{
+  width:38px;height:38px;border-radius:50%;
+  border:1px solid var(--border);background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-mono);font-size:0.78rem;
+  font-weight:700;color:var(--muted);flex-shrink:0;
+  position:relative;z-index:1;
+}
+.step-num.active{background:var(--green-bg);border-color:var(--green);color:var(--green)}
+.step-content{flex:1;padding-top:6px}
+.step-title{font-size:0.9rem;font-weight:700;margin-bottom:4px}
+.step-desc{font-size:0.82rem;color:var(--muted);line-height:1.6}
+
+/* ── COMPARISON TABLE ── */
+.compare-table{
+  width:100%;border-collapse:collapse;
+  font-size:0.82rem;margin:20px 0;
+  border-radius:var(--radius);overflow:hidden;
+  border:1px solid var(--border);
+}
+.compare-table th{
+  background:var(--surface2);padding:10px 14px;
+  text-align:left;font-size:0.7rem;font-weight:700;
+  letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--muted);border-bottom:1px solid var(--border);
+}
+.compare-table td{
+  padding:10px 14px;border-bottom:1px solid var(--border2);
+  vertical-align:top;color:#c9d1d9;
+}
+.compare-table tr:last-child td{border-bottom:none}
+.compare-table tr:hover td{background:var(--surface2)}
+
+/* ── BADGE ── */
+.badge{
+  display:inline-block;font-family:var(--font-mono);
+  font-size:0.65rem;font-weight:700;letter-spacing:0.5px;
+  padding:2px 8px;border-radius:20px;
+}
+.badge-green{background:var(--green-bg);color:var(--green)}
+.badge-blue{background:var(--blue-bg);color:var(--blue)}
+.badge-orange{background:var(--orange-bg);color:var(--orange)}
+.badge-red{background:var(--red-bg);color:var(--red)}
+.badge-purple{background:var(--purple-bg);color:var(--purple)}
+
+/* ── SECTION DIVIDER ── */
+.divider{
+  text-align:center;padding:32px 0 0;
+  font-family:var(--font-mono);font-size:0.65rem;
+  color:var(--dim);letter-spacing:3px;
+}
+
+/* ── FOOTER ── */
+footer{
+  max-width:860px;margin:0 auto;
+  padding:40px 24px;
+  text-align:center;
+  font-size:0.78rem;color:var(--dim);
+  border-top:1px solid var(--border2);
+}
+
+/* ── FADE IN ── */
+.fade{opacity:0;transform:translateY(20px);transition:opacity 0.5s ease,transform 0.5s ease}
+.fade.in{opacity:1;transform:none}
+
+/* ── COLLAPSIBLE ── */
+details{
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:var(--radius);margin:12px 0;overflow:hidden;
+}
+summary{
+  padding:14px 16px;cursor:pointer;
+  font-size:0.85rem;font-weight:600;
+  display:flex;align-items:center;gap:8px;
+  list-style:none;user-select:none;
+  transition:background 0.15s;
+}
+summary::-webkit-details-marker{display:none}
+summary:hover{background:var(--surface2)}
+summary::after{content:'▸';margin-left:auto;color:var(--dim);font-size:0.75rem;transition:transform 0.2s}
+details[open] summary::after{transform:rotate(90deg)}
+details .det-body{padding:0 16px 16px;border-top:1px solid var(--border2)}
+
+/* ── ALT COMMANDS BOX ── */
+.alt-box{
+  background:linear-gradient(135deg,rgba(255,166,87,0.05),rgba(188,140,255,0.05));
+  border:1px solid rgba(255,166,87,0.2);
+  border-radius:var(--radius);padding:20px;margin:16px 0;
+}
+.alt-box-label{
+  font-size:0.65rem;font-weight:700;letter-spacing:2px;
+  text-transform:uppercase;color:var(--orange);
+  margin-bottom:12px;display:flex;align-items:center;gap:8px;
+}
+.alt-box-label::before{content:'🔧'}
+
+/* ── HIGHLIGHT LINE ── */
+.hl-line{
+  background:rgba(88,166,255,0.08);
+  border-left:2px solid var(--blue);
+  padding:8px 12px;border-radius:0 6px 6px 0;
+  font-size:0.85rem;margin:8px 0;
+}
+
+/* ── BIG ICON SECTION ── */
+.big-icon{
+  font-size:3rem;margin-bottom:12px;
+  display:block;
+}
+
+/* network diagram helpers */
+.nd-wrap{
+  overflow-x:auto;padding:4px;
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<nav id="topnav">
+  <span class="nav-logo">$ net_lab</span>
+  <a href="#foundations">Foundations</a>
+  <a href="#namespace">Namespaces</a>
+  <a href="#veth">Veth Pairs</a>
+  <a href="#bridge">Bridges</a>
+  <a href="#scripts">Scripts</a>
+  <a href="#example1">Lab 1</a>
+  <a href="#example2">Lab 2</a>
+  <a href="#example3">Lab 3</a>
+  <a href="#commands">All Commands</a>
+</nav>
+
+<!-- ████████ HERO ████████ -->
+<div class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-inner">
+    <div class="hero-badge">🧪 iximiuz Labs — Explained from First Principles</div>
+    <h1>Ethernet<br><em>Broadcast Domains</em><br>for Complete Beginners</h1>
+    <p class="hero-sub">
+      You don't need to know what a namespace is. You don't need any Linux experience.
+      This guide explains every single concept, command, and script — starting from zero.
+    </p>
+    <div class="hero-meta">
+      <span>📖 From-scratch explanations</span>
+      <span>🖼️ Visual diagrams</span>
+      <span>⌨️ Every command decoded</span>
+      <span>🔧 Alternative commands included</span>
+    </div>
+  </div>
+</div>
+
+<!-- ████████ TOC ████████ -->
+<div class="toc-section fade" id="toc">
+  <div class="section-eyebrow">What's Inside</div>
+  <div class="toc-grid">
+    <a class="toc-item" href="#foundations"><span class="toc-num">01</span><div><div class="toc-title">Foundations</div><div class="toc-sub">Networks, frames, MACs</div></div></a>
+    <a class="toc-item" href="#namespace"><span class="toc-num">02</span><div><div class="toc-title">Network Namespaces</div><div class="toc-sub">Virtual rooms for computers</div></div></a>
+    <a class="toc-item" href="#veth"><span class="toc-num">03</span><div><div class="toc-title">Veth Pairs</div><div class="toc-sub">Virtual cables</div></div></a>
+    <a class="toc-item" href="#bridge"><span class="toc-num">04</span><div><div class="toc-title">Linux Bridge</div><div class="toc-sub">Virtual switch</div></div></a>
+    <a class="toc-item" href="#scripts"><span class="toc-num">05</span><div><div class="toc-title">Helper Scripts</div><div class="toc-sub">Every line explained</div></div></a>
+    <a class="toc-item" href="#example1"><span class="toc-num">06</span><div><div class="toc-title">Lab 1: One Switch</div><div class="toc-sub">Basic broadcast demo</div></div></a>
+    <a class="toc-item" href="#example2"><span class="toc-num">07</span><div><div class="toc-title">Lab 2: Two Switches</div><div class="toc-sub">Bridged broadcast domain</div></div></a>
+    <a class="toc-item" href="#example3"><span class="toc-num">08</span><div><div class="toc-title">Lab 3: Hierarchical</div><div class="toc-sub">Tree of switches</div></div></a>
+    <a class="toc-item" href="#commands"><span class="toc-num">09</span><div><div class="toc-title">Commands Reference</div><div class="toc-sub">Every command decoded</div></div></a>
+  </div>
+</div>
+
+<main>
+
+<!-- ████████ SECTION 1: FOUNDATIONS ████████ -->
+<section class="section fade" id="foundations">
+  <div class="section-eyebrow">Section 01</div>
+  <h2>The Foundations You Need First</h2>
+  <div class="lead">Before running a single command, let's make sure the mental model is solid. This section explains networks, MAC addresses, Ethernet frames, and broadcast — from scratch.</div>
+
+  <div class="prose">
+    <p><strong>What is a computer network?</strong> At the most basic level, it's just computers connected so they can send messages to each other. That's it. Everything else — switches, routers, VLANs — is just machinery to make that message delivery work better.</p>
+    <p><strong>What is Ethernet?</strong> Ethernet is the most common set of rules (protocol) that computers on a local network use to communicate. When computers on the same network talk to each other directly, they use Ethernet.</p>
+  </div>
+
+  <div class="analogy" data-emoji="📮">
+    <div class="analogy-label">Analogy — The Post Office</div>
+    <p>Think of a network like a neighbourhood. Each house is a computer. The <strong>post office rules</strong> (Ethernet) say: every letter must have a <em>sender address</em> and a <em>recipient address</em> written on it. The delivery people (switches) use those addresses to get the letter to the right house.</p>
+  </div>
+
+  <h3 style="font-size:1.1rem;font-weight:700;margin:28px 0 12px;color:var(--text)">MAC Addresses — Your Computer's Permanent Name Tag</h3>
+  <div class="prose">
+    <p>Every single network card (physical or virtual) in the world has a <strong>MAC address</strong> (Media Access Control address). It looks like this: <code>06:e5:f0:20:af:7a</code>. It's six groups of two hex digits, separated by colons.</p>
+    <p>Think of it as a <em>serial number permanently stamped on the network card at the factory</em>. Unlike an IP address (which you can change), a MAC address is burned in. When computers on the same local network want to find each other, they use MAC addresses.</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-label">MAC Address structure</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;justify-content:center;padding:8px 0">
+      <div style="text-align:center">
+        <div style="display:flex;gap:2px;margin-bottom:8px">
+          <div style="background:rgba(88,166,255,0.2);border:1px solid var(--blue);border-radius:4px;padding:8px 10px;font-family:var(--font-mono);font-size:0.85rem;color:var(--blue)">06</div>
+          <div style="background:rgba(88,166,255,0.2);border:1px solid var(--blue);border-radius:4px;padding:8px 10px;font-family:var(--font-mono);font-size:0.85rem;color:var(--blue)">e5</div>
+          <div style="background:rgba(88,166,255,0.2);border:1px solid var(--blue);border-radius:4px;padding:8px 10px;font-family:var(--font-mono);font-size:0.85rem;color:var(--blue)">f0</div>
+          <div style="background:rgba(63,185,80,0.2);border:1px solid var(--green);border-radius:4px;padding:8px 10px;font-family:var(--font-mono);font-size:0.85rem;color:var(--green)">20</div>
+          <div style="background:rgba(63,185,80,0.2);border:1px solid var(--green);border-radius:4px;padding:8px 10px;font-family:var(--font-mono);font-size:0.85rem;color:var(--green)">af</div>
+          <div style="background:rgba(63,185,80,0.2);border:1px solid var(--green);border-radius:4px;padding:8px 10px;font-family:var(--font-mono);font-size:0.85rem;color:var(--green)">7a</div>
+        </div>
+        <div style="display:flex;gap:2px">
+          <div style="background:rgba(88,166,255,0.08);border-radius:4px;padding:3px 10px;font-size:0.65rem;color:var(--blue);width:calc(3*36px + 2*2px);text-align:center">Manufacturer ID (OUI)</div>
+          <div style="background:rgba(63,185,80,0.08);border-radius:4px;padding:3px 10px;font-size:0.65rem;color:var(--green);width:calc(3*36px + 2*2px);text-align:center">Device Serial</div>
+        </div>
+      </div>
+    </div>
+    <div style="text-align:center;font-size:0.75rem;color:var(--dim);margin-top:12px">Special address <code>ff:ff:ff:ff:ff:ff</code> = "send to EVERYONE" (broadcast)</div>
+  </div>
+
+  <h3 style="font-size:1.1rem;font-weight:700;margin:28px 0 12px;color:var(--text)">Ethernet Frame — The Envelope</h3>
+  <div class="prose">
+    <p>When computer A wants to send data to computer B, it doesn't just blast raw bytes. It wraps the data in an <strong>Ethernet frame</strong> — think of it as putting a letter in an envelope with proper labelling.</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-label">Structure of an Ethernet Frame</div>
+    <div style="overflow-x:auto">
+      <div style="display:flex;gap:2px;min-width:500px;margin-bottom:8px">
+        <div style="flex:1.5;background:rgba(255,123,114,0.15);border:1px solid var(--red);border-radius:6px;padding:10px 8px;text-align:center">
+          <div style="font-family:var(--font-mono);font-size:0.72rem;color:var(--red);font-weight:700">Destination MAC</div>
+          <div style="font-size:0.65rem;color:var(--dim);margin-top:3px">6 bytes — Who gets this?</div>
+        </div>
+        <div style="flex:1.5;background:rgba(88,166,255,0.15);border:1px solid var(--blue);border-radius:6px;padding:10px 8px;text-align:center">
+          <div style="font-family:var(--font-mono);font-size:0.72rem;color:var(--blue);font-weight:700">Source MAC</div>
+          <div style="font-size:0.65rem;color:var(--dim);margin-top:3px">6 bytes — Who sent this?</div>
+        </div>
+        <div style="flex:0.8;background:rgba(227,179,65,0.15);border:1px solid var(--yellow);border-radius:6px;padding:10px 8px;text-align:center">
+          <div style="font-family:var(--font-mono);font-size:0.72rem;color:var(--yellow);font-weight:700">EtherType</div>
+          <div style="font-size:0.65rem;color:var(--dim);margin-top:3px">2 bytes — Type</div>
+        </div>
+        <div style="flex:3;background:rgba(63,185,80,0.15);border:1px solid var(--green);border-radius:6px;padding:10px 8px;text-align:center">
+          <div style="font-family:var(--font-mono);font-size:0.72rem;color:var(--green);font-weight:700">Payload (Data)</div>
+          <div style="font-size:0.65rem;color:var(--dim);margin-top:3px">46–1500 bytes — The actual message</div>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:0.75rem;color:var(--dim);text-align:center">Broadcast frame: Destination MAC = <code>ff:ff:ff:ff:ff:ff</code> → every device on the network must read it</div>
+  </div>
+
+  <h3 style="font-size:1.1rem;font-weight:700;margin:28px 0 12px;color:var(--text)">What is a Broadcast?</h3>
+  <div class="analogy" data-emoji="📣">
+    <div class="analogy-label">Analogy — The Town Crier</div>
+    <p>A broadcast is when one device shouts to <strong>everyone</strong> at once: <em>"Hey! Does anyone know where 192.168.1.5 is?"</em> Every device on the network hears it, checks if the question applies to them, and either responds or ignores it. The special MAC address <code>ff:ff:ff:ff:ff:ff</code> means "deliver to all."</p>
+    <p>The set of all devices that receive this shout = <strong>broadcast domain</strong>.</p>
+  </div>
+
+  <div class="callout key"><strong>The Big Question This Lab Answers</strong>When you connect multiple network segments together, which devices can hear each other's broadcasts? The answer to that question defines your broadcast domain — and this whole lab is about understanding exactly that.</div>
+</section>
+
+<!-- ████████ SECTION 2: NAMESPACES ████████ -->
+<section class="section fade" id="namespace">
+  <div class="section-eyebrow">Section 02</div>
+  <h2>Network Namespaces — Virtual Rooms</h2>
+  <div class="lead">The lab uses "network namespaces" to simulate separate computers on a single Linux machine. Let's understand what that actually means.</div>
+
+  <div class="prose">
+    <p>Normally, your Linux computer has <em>one</em> network identity: one set of network interfaces, one routing table, one set of firewall rules. Everything on the machine shares it.</p>
+    <p>A <strong>network namespace</strong> is like drawing a <em>partition line</em> inside the operating system. Each namespace gets its own completely isolated network identity — its own virtual network cards, its own routing table, its own firewall. Devices in one namespace cannot see devices in another namespace unless you explicitly connect them.</p>
+  </div>
+
+  <div class="analogy" data-emoji="🏘️">
+    <div class="analogy-label">Analogy — Separate Houses</div>
+    <p>Imagine one physical building (your computer) split into multiple separate apartments (namespaces). Each apartment has its <strong>own front door, own letterbox, own phone line</strong>. Tenants in Apartment A have no idea what Apartment B is doing — they can't shout through the walls. If you want Apartment A to talk to Apartment B, you must install a <strong>pipe between them</strong> (that's the veth pair, coming next).</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-label">One Linux machine, three isolated namespaces</div>
+    <div class="nd-wrap">
+      <svg class="net-svg" viewBox="0 0 700 200" height="200" width="100%">
+        <!-- Host border -->
+        <rect x="10" y="10" width="680" height="180" rx="12" fill="none" stroke="#30363d" stroke-width="1.5" stroke-dasharray="6,4"/>
+        <text x="20" y="28" font-size="10" fill="#484f58" font-family="JetBrains Mono">YOUR LINUX MACHINE</text>
+
+        <!-- Namespace boxes -->
+        <rect x="40" y="45" width="170" height="120" rx="8" fill="rgba(88,166,255,0.06)" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="125" y="65" text-anchor="middle" font-size="9" fill="#58a6ff" font-family="JetBrains Mono" font-weight="600">NAMESPACE: host1</text>
+        <text x="125" y="100" text-anchor="middle" font-size="22">🖥️</text>
+        <text x="125" y="130" text-anchor="middle" font-size="9" fill="#8b949e" font-family="JetBrains Mono">eth1: aa:bb:cc:11</text>
+        <text x="125" y="148" text-anchor="middle" font-size="9" fill="#8b949e" font-family="JetBrains Mono">No IP needed!</text>
+
+        <rect x="265" y="45" width="170" height="120" rx="8" fill="rgba(63,185,80,0.06)" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="350" y="65" text-anchor="middle" font-size="9" fill="#3fb950" font-family="JetBrains Mono" font-weight="600">NAMESPACE: host2</text>
+        <text x="350" y="100" text-anchor="middle" font-size="22">🖥️</text>
+        <text x="350" y="130" text-anchor="middle" font-size="9" fill="#8b949e" font-family="JetBrains Mono">eth2: aa:bb:cc:22</text>
+        <text x="350" y="148" text-anchor="middle" font-size="9" fill="#8b949e" font-family="JetBrains Mono">Isolated by default</text>
+
+        <rect x="490" y="45" width="170" height="120" rx="8" fill="rgba(255,166,87,0.06)" stroke="#ffa657" stroke-width="1.5"/>
+        <text x="575" y="65" text-anchor="middle" font-size="9" fill="#ffa657" font-family="JetBrains Mono" font-weight="600">NAMESPACE: host3</text>
+        <text x="575" y="100" text-anchor="middle" font-size="22">🖥️</text>
+        <text x="575" y="130" text-anchor="middle" font-size="9" fill="#8b949e" font-family="JetBrains Mono">eth3: aa:bb:cc:33</text>
+        <text x="575" y="148" text-anchor="middle" font-size="9" fill="#8b949e" font-family="JetBrains Mono">Can't see others</text>
+
+        <!-- X marks between -->
+        <text x="228" y="115" text-anchor="middle" font-size="14" fill="#ff7b72">✗</text>
+        <text x="455" y="115" text-anchor="middle" font-size="14" fill="#ff7b72">✗</text>
+      </svg>
+    </div>
+    <div style="font-size:0.75rem;color:var(--dim);text-align:center;margin-top:8px">All three "computers" are simulated on a single machine. They're invisible to each other until connected.</div>
+  </div>
+
+  <h3 style="font-size:1.1rem;font-weight:700;margin:28px 0 12px;color:var(--text)">The <code>ip netns</code> command family</h3>
+
+  <div class="cmd-explain">
+    <div class="cmd-explain-header">ip netns add host1</div>
+    <div class="cmd-explain-body">
+      <div class="cmd-part"><span class="cmd-token cmd-prog">ip</span><div class="cmd-desc"><strong>The main Linux networking tool.</strong> Like a Swiss Army knife for network configuration. Almost everything network-related in modern Linux goes through <code>ip</code>.</div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-flag">netns</span><div class="cmd-desc"><strong>Subcommand: "network namespace".</strong> Tells <code>ip</code> that we want to work with namespaces.</div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-flag">add</span><div class="cmd-desc"><strong>Action: create a new namespace.</strong></div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-arg">host1</span><div class="cmd-desc"><strong>The name we give this namespace.</strong> After this runs, a namespace called "host1" exists on the machine. Think of it as: "Build me a new isolated apartment called host1."</div></div>
+    </div>
+  </div>
+
+  <div class="cmd-explain">
+    <div class="cmd-explain-header">ip netns exec host1 &lt;some command&gt;</div>
+    <div class="cmd-explain-body">
+      <div class="cmd-part"><span class="cmd-token cmd-prog">ip netns exec</span><div class="cmd-desc"><strong>"Go inside namespace and run a command."</strong> Without this, every command you type affects the default (root) namespace — your real machine. With <code>exec host1</code>, the command runs as if you're operating INSIDE the host1 apartment.</div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-arg">host1</span><div class="cmd-desc"><strong>Which namespace to enter.</strong></div></div>
+    </div>
+  </div>
+
+  <div class="alt-box">
+    <div class="alt-box-label">Alternative — Use nsenter instead</div>
+    <p style="font-size:0.83rem;color:var(--muted);margin-bottom:10px">The lab also uses <code>nsenter</code> — another way to "step inside" a namespace. It's more flexible:</p>
+    <div class="code-block" style="margin:0">
+      <div class="code-header"><span class="code-title">nsenter vs ip netns exec</span></div>
+      <div class="code-body"><code><span class="c"># Method 1: ip netns exec</span>
+<span class="cmd">ip netns exec host1 </span><span class="s">ip link show</span>
+
+<span class="c"># Method 2: nsenter (used in tcpdump commands later)</span>
+<span class="cmd">nsenter --net=/var/run/netns/host1 </span><span class="s">ip link show</span>
+
+<span class="c"># Both do the same thing: run 'ip link show' inside namespace host1
+# nsenter uses the actual file path of the namespace
+# ip netns exec uses the namespace name directly</span></code></div>
+    </div>
+  </div>
+
+  <div class="callout tip"><strong>Why no IP addresses?</strong> This lab operates at <strong>Layer 2 (Ethernet)</strong> — the level of MAC addresses and frames. You don't need IP addresses to send Ethernet frames! Devices on the same local network can communicate using only MAC addresses. IP addresses (Layer 3) are only needed when crossing network boundaries via a router.</div>
+</section>
+
+<!-- ████████ SECTION 3: VETH ████████ -->
+<section class="section fade" id="veth">
+  <div class="section-eyebrow">Section 03</div>
+  <h2>Veth Pairs — The Virtual Cable</h2>
+  <div class="lead">A veth (Virtual ETHernet) pair is like a physical network cable, except it's software. You can use it to connect two namespaces together.</div>
+
+  <div class="analogy" data-emoji="🔌">
+    <div class="analogy-label">Analogy — A Pipe Between Rooms</div>
+    <p>Remember our apartment analogy. A veth pair is like drilling a hole through the wall between Apartment A and Apartment B and inserting a pipe. <strong>Anything you push into one end comes out the other end.</strong></p>
+    <p>A veth always comes in pairs — you can't have one end without the other. One end lives in namespace A, the other end lives in namespace B. They're permanently connected.</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-label">Veth pair connecting two namespaces</div>
+    <div class="nd-wrap">
+      <svg class="net-svg" viewBox="0 0 680 160" height="160" width="100%">
+        <!-- host1 -->
+        <rect x="20" y="20" width="220" height="120" rx="8" fill="rgba(88,166,255,0.06)" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="130" y="40" text-anchor="middle" font-size="9" fill="#58a6ff" font-family="JetBrains Mono" font-weight="600">NAMESPACE: host1</text>
+        <text x="130" y="80" text-anchor="middle" font-size="20">🖥️</text>
+        <text x="130" y="108" text-anchor="middle" font-size="9" fill="#8b949e" font-family="JetBrains Mono">Interface: eth1</text>
+        <!-- eth1 port -->
+        <rect x="228" y="72" width="20" height="16" rx="2" fill="#58a6ff"/>
+        <text x="238" y="84" text-anchor="middle" font-size="7" fill="#0d1117" font-family="JetBrains Mono">eth1</text>
+
+        <!-- cable -->
+        <line x1="248" y1="80" x2="412" y2="80" stroke="#3fb950" stroke-width="2.5" stroke-dasharray="6,3"/>
+        <text x="330" y="70" text-anchor="middle" font-size="9" fill="#3fb950" font-family="JetBrains Mono">veth pair</text>
+        <text x="330" y="98" text-anchor="middle" font-size="8" fill="#484f58" font-family="JetBrains Mono">data flows both ways</text>
+
+        <!-- host2 -->
+        <rect x="440" y="20" width="220" height="120" rx="8" fill="rgba(63,185,80,0.06)" stroke="#3fb950" stroke-width="1.5"/>
+        <!-- eth2 port -->
+        <rect x="412" y="72" width="28" height="16" rx="2" fill="#3fb950"/>
+        <text x="426" y="84" text-anchor="middle" font-size="7" fill="#0d1117" font-family="JetBrains Mono">eth2</text>
+        <text x="550" y="40" text-anchor="middle" font-size="9" fill="#3fb950" font-family="JetBrains Mono" font-weight="600">NAMESPACE: host2</text>
+        <text x="550" y="80" text-anchor="middle" font-size="20">🖥️</text>
+        <text x="550" y="108" text-anchor="middle" font-size="9" fill="#8b949e" font-family="JetBrains Mono">Interface: eth2</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="cmd-explain">
+    <div class="cmd-explain-header">ip link add eth1 netns host1 type veth peer eth1b netns bridge1</div>
+    <div class="cmd-explain-body">
+      <div class="cmd-part"><span class="cmd-token cmd-prog">ip link add</span><div class="cmd-desc"><strong>Create a new network link (interface).</strong></div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-arg">eth1</span><div class="cmd-desc"><strong>Name of the first end of the cable.</strong> This end will be placed in the host1 namespace.</div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-flag">netns host1</span><div class="cmd-desc"><strong>Put the first end into the "host1" namespace.</strong> Like pushing one end of the cable through the wall into host1's apartment.</div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-flag">type veth</span><div class="cmd-desc"><strong>The type of link to create = virtual ethernet pair.</strong> This is what makes both ends exist and be connected.</div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-flag">peer</span><div class="cmd-desc"><strong>Keyword meaning "and here is the other end."</strong></div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-arg">eth1b</span><div class="cmd-desc"><strong>Name of the second end of the cable.</strong> The "b" suffix is just convention — the script uses this to track which end is which.</div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-flag">netns bridge1</span><div class="cmd-desc"><strong>Put the second end into the "bridge1" namespace.</strong> This end will be plugged into the switch.</div></div>
+    </div>
+  </div>
+
+  <div class="callout info"><strong>Why "bring up" an interface?</strong> Creating a veth pair doesn't automatically activate it. It's like plugging in a cable but the power switch is still off. You need to run <code>ip link set eth1 up</code> to turn it on. This is called "bringing the interface up."</div>
+</section>
+
+<!-- ████████ SECTION 4: BRIDGE ████████ -->
+<section class="section fade" id="bridge">
+  <div class="section-eyebrow">Section 04</div>
+  <h2>Linux Bridge — The Virtual Switch</h2>
+  <div class="lead">A Linux bridge is software that behaves exactly like a physical network switch. It lives inside a namespace and all cables plugged into it get forwarded intelligently.</div>
+
+  <div class="analogy" data-emoji="🏢">
+    <div class="analogy-label">Analogy — The Building's Mailroom</div>
+    <p>Each apartment (namespace) is a separate unit. The <strong>bridge is the building's mailroom in the basement</strong>. Every apartment drops their outgoing mail here, and the mailroom worker (<strong>bridge device</strong>) figures out which apartment to deliver each letter to.</p>
+    <p>At first the mailroom doesn't know who lives where. So the first time PC-A sends a letter, the mailroom <strong>delivers it to every apartment</strong> (flooding). But it <em>remembers</em> "oh, PC-A lives in slot 3." Next time a letter arrives for PC-A, it goes directly to slot 3 — no more flooding to everyone.</p>
+    <p>This memory = <strong>MAC address table</strong>. This learning = <strong>bridge learning mode</strong>.</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-label">Linux bridge connecting 3 namespaces (simulating a switch)</div>
+    <div class="nd-wrap">
+      <svg class="net-svg" viewBox="0 0 680 300" height="300" width="100%">
+        <!-- Bridge namespace -->
+        <rect x="200" y="130" width="280" height="100" rx="10" fill="rgba(188,140,255,0.06)" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="340" y="152" text-anchor="middle" font-size="9" fill="#bc8cff" font-family="JetBrains Mono" font-weight="600">NAMESPACE: bridge1</text>
+        <!-- Bridge device -->
+        <rect x="270" y="162" width="140" height="48" rx="6" fill="rgba(188,140,255,0.15)" stroke="#bc8cff" stroke-width="1"/>
+        <text x="340" y="180" text-anchor="middle" font-size="9" fill="#bc8cff" font-family="JetBrains Mono" font-weight="600">br1 (bridge device)</text>
+        <text x="340" y="196" text-anchor="middle" font-size="8" fill="#8b949e" font-family="JetBrains Mono">Learns MAC → port mapping</text>
+        <!-- Bridge ports -->
+        <rect x="285" y="210" width="30" height="14" rx="2" fill="#bc8cff" opacity="0.7"/>
+        <text x="300" y="221" text-anchor="middle" font-size="7" fill="#0d1117" font-family="JetBrains Mono">eth1b</text>
+        <rect x="325" y="210" width="30" height="14" rx="2" fill="#bc8cff" opacity="0.7"/>
+        <text x="340" y="221" text-anchor="middle" font-size="7" fill="#0d1117" font-family="JetBrains Mono">eth2b</text>
+        <rect x="365" y="210" width="30" height="14" rx="2" fill="#bc8cff" opacity="0.7"/>
+        <text x="380" y="221" text-anchor="middle" font-size="7" fill="#0d1117" font-family="JetBrains Mono">eth3b</text>
+
+        <!-- Host namespaces -->
+        <!-- host1 -->
+        <rect x="20" y="30" width="150" height="90" rx="8" fill="rgba(88,166,255,0.06)" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="95" y="50" text-anchor="middle" font-size="9" fill="#58a6ff" font-family="JetBrains Mono" font-weight="600">NAMESPACE: host1</text>
+        <text x="95" y="82" text-anchor="middle" font-size="18">🖥️</text>
+        <text x="95" y="108" text-anchor="middle" font-size="8" fill="#8b949e" font-family="JetBrains Mono">eth1</text>
+        <!-- cable h1 to bridge -->
+        <line x1="95" y1="120" x2="300" y2="210" stroke="#484f58" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="180" y="165" text-anchor="middle" font-size="8" fill="#484f58" font-family="JetBrains Mono" transform="rotate(-35,180,165)">veth pair</text>
+
+        <!-- host2 -->
+        <rect x="265" y="20" width="150" height="90" rx="8" fill="rgba(63,185,80,0.06)" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="340" y="40" text-anchor="middle" font-size="9" fill="#3fb950" font-family="JetBrains Mono" font-weight="600">NAMESPACE: host2</text>
+        <text x="340" y="72" text-anchor="middle" font-size="18">🖥️</text>
+        <text x="340" y="98" text-anchor="middle" font-size="8" fill="#8b949e" font-family="JetBrains Mono">eth2</text>
+        <!-- cable h2 to bridge -->
+        <line x1="340" y1="110" x2="340" y2="162" stroke="#484f58" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- host3 -->
+        <rect x="510" y="30" width="150" height="90" rx="8" fill="rgba(255,166,87,0.06)" stroke="#ffa657" stroke-width="1.5"/>
+        <text x="585" y="50" text-anchor="middle" font-size="9" fill="#ffa657" font-family="JetBrains Mono" font-weight="600">NAMESPACE: host3</text>
+        <text x="585" y="82" text-anchor="middle" font-size="18">🖥️</text>
+        <text x="585" y="108" text-anchor="middle" font-size="8" fill="#8b949e" font-family="JetBrains Mono">eth3</text>
+        <!-- cable h3 to bridge -->
+        <line x1="585" y1="120" x2="380" y2="210" stroke="#484f58" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="500" y="165" text-anchor="middle" font-size="8" fill="#484f58" font-family="JetBrains Mono" transform="rotate(35,500,165)">veth pair</text>
+
+        <!-- Broadcast wave -->
+        <circle cx="95" cy="75" r="14" fill="none" stroke="#ff7b72" stroke-width="1" opacity="0.6" stroke-dasharray="3,2"/>
+        <circle cx="95" cy="75" r="24" fill="none" stroke="#ff7b72" stroke-width="1" opacity="0.3" stroke-dasharray="3,2"/>
+        <text x="50" y="30" font-size="8" fill="#ff7b72" font-family="JetBrains Mono">BROADCAST!</text>
+        <!-- Arrow to others -->
+        <path d="M 120 75 Q 340 240 340 88" fill="none" stroke="#ff7b72" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arr)"/>
+        <path d="M 120 75 Q 340 240 570 88" fill="none" stroke="#ff7b72" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arr)"/>
+        <defs><marker id="arr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#ff7b72"/></marker></defs>
+      </svg>
+    </div>
+  </div>
+
+  <div class="cmd-explain">
+    <div class="cmd-explain-header">ip link add br1 type bridge</div>
+    <div class="cmd-explain-body">
+      <div class="cmd-part"><span class="cmd-token cmd-prog">ip link add</span><div class="cmd-desc"><strong>Create a new network device.</strong></div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-arg">br1</span><div class="cmd-desc"><strong>Name of the bridge device.</strong> Just a name, like naming a file.</div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-flag">type bridge</span><div class="cmd-desc"><strong>Tell Linux this device should behave like a network switch.</strong> Linux will create a bridge device that learns MAC addresses and forwards frames.</div></div>
+    </div>
+  </div>
+
+  <div class="cmd-explain">
+    <div class="cmd-explain-header">ip link set eth1b master br1</div>
+    <div class="cmd-explain-body">
+      <div class="cmd-part"><span class="cmd-token cmd-arg">eth1b</span><div class="cmd-desc"><strong>The veth end that's inside the bridge namespace.</strong> This is the "cable end" sticking out of the wall.</div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-flag">master br1</span><div class="cmd-desc"><strong>"Plug this cable into the switch."</strong> This attaches the interface as a port of the bridge. Like physically inserting a cable into a switch port.</div></div>
+    </div>
+  </div>
+
+  <div class="callout tip"><strong>Bridge vs. Hub</strong> A hub would forward every packet to every port, blindly. A bridge (and a real switch) is <em>smarter</em> — it learns which MAC address is on which port and delivers unicast frames only to the right port. However, <strong>broadcasts</strong> (ff:ff:ff:ff:ff:ff) are still forwarded to every port — that's unavoidable.</div>
+</section>
+
+<!-- ████████ SECTION 5: SCRIPTS ████████ -->
+<section class="section fade" id="scripts">
+  <div class="section-eyebrow">Section 05</div>
+  <h2>The Helper Scripts — Every Line Explained</h2>
+  <div class="lead">The lab provides three bash helper scripts. They're not magic — they're just shortcuts for commands you could type yourself. Let's dissect every single line.</div>
+
+  <!-- create_bridge -->
+  <h3 style="font-size:1.1rem;font-weight:700;margin:0 0 16px;color:var(--text)">Script 1: <code>create_bridge</code></h3>
+  <div class="prose"><p>This creates a new namespace and puts a bridge (virtual switch) inside it.</p></div>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-title">create_bridge — annotated</span><span class="code-lang">bash</span></div>
+    <div class="code-body"><code><span class="f">create_bridge</span><span class="p">()</span> <span class="p">{</span>
+  <span class="k">local</span> <span class="v">nsname</span>=<span class="s">"$1"</span>          <span class="c"># First argument = namespace name (e.g. "bridge1")</span>
+  <span class="k">local</span> <span class="v">ifname</span>=<span class="s">"$2"</span>          <span class="c"># Second argument = bridge device name (e.g. "br1")</span>
+
+  <span class="f">ip netns add</span> <span class="v">${nsname}</span>       <span class="c"># 1. Create a new isolated network namespace</span>
+  <span class="f">ip netns exec</span> <span class="v">${nsname}</span> <span class="f">ip link set lo up</span>
+                              <span class="c"># 2. Turn on the loopback interface (127.0.0.1 "localhost")</span>
+                              <span class="c">#    Every namespace needs this turned on manually</span>
+  <span class="f">ip netns exec</span> <span class="v">${nsname}</span> <span class="f">ip link add</span> <span class="v">${ifname}</span> <span class="n">type bridge</span>
+                              <span class="c"># 3. Create the bridge device INSIDE the namespace</span>
+  <span class="f">ip netns exec</span> <span class="v">${nsname}</span> <span class="f">ip link set</span> <span class="v">${ifname}</span> <span class="n">up</span>
+                              <span class="c"># 4. Turn the bridge on (activate it)</span>
+<span class="p">}</span></code></div>
+  </div>
+
+  <div class="alt-box">
+    <div class="alt-box-label">Alternative — Do it manually, step by step</div>
+    <div class="code-block" style="margin:0">
+      <div class="code-header"><span class="code-title">Equivalent manual commands</span><span class="code-lang">bash</span></div>
+      <div class="code-body"><code><span class="c"># Exactly the same as: create_bridge bridge1 br1</span>
+
+<span class="c"># Step 1: Create the namespace called "bridge1"</span>
+<span class="cmd">ip netns add bridge1</span>
+
+<span class="c"># Step 2: Turn on loopback inside bridge1</span>
+<span class="cmd">ip netns exec bridge1 ip link set lo up</span>
+
+<span class="c"># Step 3: Create a bridge device called "br1" inside bridge1 namespace</span>
+<span class="cmd">ip netns exec bridge1 ip link add br1 type bridge</span>
+
+<span class="c"># Step 4: Activate the bridge</span>
+<span class="cmd">ip netns exec bridge1 ip link set br1 up</span>
+
+<span class="c"># Verify: list all network interfaces inside bridge1</span>
+<span class="cmd">ip netns exec bridge1 ip link show</span></code></div>
+    </div>
+  </div>
+
+  <!-- create_end_host -->
+  <h3 style="font-size:1.1rem;font-weight:700;margin:32px 0 16px;color:var(--text)">Script 2: <code>create_end_host</code></h3>
+  <div class="prose"><p>This creates a namespace representing a computer and connects it to the bridge via a veth pair.</p></div>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-title">create_end_host — annotated</span><span class="code-lang">bash</span></div>
+    <div class="code-body"><code><span class="f">create_end_host</span><span class="p">()</span> <span class="p">{</span>
+  <span class="k">local</span> <span class="v">host_nsname</span>=<span class="s">"$1"</span>     <span class="c"># Arg 1: Name for the host namespace (e.g. "host1")</span>
+  <span class="k">local</span> <span class="v">peer1_ifname</span>=<span class="s">"$2"</span>   <span class="c"># Arg 2: Name for host's interface (e.g. "eth1")</span>
+  <span class="k">local</span> <span class="v">peer2_ifname</span>=<span class="s">"$2b"</span>  <span class="c"># Auto-generated: same name + "b" = the bridge end (e.g. "eth1b")</span>
+  <span class="k">local</span> <span class="v">bridge_nsname</span>=<span class="s">"$3"</span>  <span class="c"># Arg 3: Name of the bridge namespace (e.g. "bridge1")</span>
+  <span class="k">local</span> <span class="v">bridge_ifname</span>=<span class="s">"$4"</span>  <span class="c"># Arg 4: Name of bridge device inside that namespace (e.g. "br1")</span>
+
+  <span class="c"># --- Create the host namespace ---</span>
+  <span class="f">ip netns add</span> <span class="v">${host_nsname}</span>                 <span class="c"># Create namespace "host1"</span>
+  <span class="f">ip netns exec</span> <span class="v">${host_nsname}</span> <span class="f">ip link set lo up</span> <span class="c"># Turn on loopback</span>
+
+  <span class="c"># --- Create the veth cable ---</span>
+  <span class="f">ip link add</span> <span class="v">${peer1_ifname}</span> <span class="n">netns</span> <span class="v">${host_nsname}</span> <span class="n">type veth peer</span> \
+              <span class="v">${peer2_ifname}</span> <span class="n">netns</span> <span class="v">${bridge_nsname}</span>
+  <span class="c"># ↑ Create a veth pair where:
+  #   - One end (eth1)  goes into host1 namespace
+  #   - Other end (eth1b) goes into bridge1 namespace</span>
+
+  <span class="c"># --- Activate both ends ---</span>
+  <span class="f">ip netns exec</span> <span class="v">${host_nsname}</span>   <span class="f">ip link set</span> <span class="v">${peer1_ifname}</span> <span class="n">up</span>  <span class="c"># Turn on host's eth1</span>
+  <span class="f">ip netns exec</span> <span class="v">${bridge_nsname}</span> <span class="f">ip link set</span> <span class="v">${peer2_ifname}</span> <span class="n">up</span>  <span class="c"># Turn on eth1b in bridge ns</span>
+
+  <span class="c"># --- Plug eth1b into the bridge ---</span>
+  <span class="f">ip netns exec</span> <span class="v">${bridge_nsname}</span> <span class="f">ip link set</span> <span class="v">${peer2_ifname}</span> <span class="n">master</span> <span class="v">${bridge_ifname}</span>
+  <span class="c"># ↑ "Set eth1b as a port of br1"
+  #   Like plugging the cable end into a switch port</span>
+<span class="p">}</span></code></div>
+  </div>
+
+  <div class="alt-box">
+    <div class="alt-box-label">Alternative — Manual commands for create_end_host host1 eth1 bridge1 br1</div>
+    <div class="code-block" style="margin:0">
+      <div class="code-header"><span class="code-title">Step-by-step manual equivalent</span><span class="code-lang">bash</span></div>
+      <div class="code-body"><code><span class="c"># Create namespace for host1</span>
+<span class="cmd">ip netns add host1</span>
+<span class="cmd">ip netns exec host1 ip link set lo up</span>
+
+<span class="c"># Create a veth cable: eth1 end in host1, eth1b end in bridge1</span>
+<span class="cmd">ip link add eth1 netns host1 type veth peer eth1b netns bridge1</span>
+
+<span class="c"># Activate both ends of the cable</span>
+<span class="cmd">ip netns exec host1   ip link set eth1  up</span>
+<span class="cmd">ip netns exec bridge1 ip link set eth1b up</span>
+
+<span class="c"># Attach eth1b (cable end in bridge namespace) as a port of the bridge br1</span>
+<span class="cmd">ip netns exec bridge1 ip link set eth1b master br1</span>
+
+<span class="c"># Check: see the bridge's ports</span>
+<span class="cmd">ip netns exec bridge1 bridge link show</span></code></div>
+    </div>
+  </div>
+
+  <!-- connect_bridges -->
+  <h3 style="font-size:1.1rem;font-weight:700;margin:32px 0 16px;color:var(--text)">Script 3: <code>connect_bridges</code></h3>
+  <div class="prose"><p>This connects two bridge namespaces to each other — merging them into one larger broadcast domain.</p></div>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-title">connect_bridges — annotated</span><span class="code-lang">bash</span></div>
+    <div class="code-body"><code><span class="f">connect_bridges</span><span class="p">()</span> <span class="p">{</span>
+  <span class="k">local</span> <span class="v">bridge1_nsname</span>=<span class="s">"$1"</span>  <span class="c"># Namespace of first bridge</span>
+  <span class="k">local</span> <span class="v">bridge1_ifname</span>=<span class="s">"$2"</span>  <span class="c"># Bridge device name in first namespace</span>
+  <span class="k">local</span> <span class="v">bridge2_nsname</span>=<span class="s">"$3"</span>  <span class="c"># Namespace of second bridge</span>
+  <span class="k">local</span> <span class="v">bridge2_ifname</span>=<span class="s">"$4"</span>  <span class="c"># Bridge device name in second namespace</span>
+
+  <span class="c"># Generate names for the connecting veth pair</span>
+  <span class="k">local</span> <span class="v">peer1_ifname</span>=<span class="s">"veth_${bridge2_ifname}"</span>  <span class="c"># e.g. "veth_br20"</span>
+  <span class="k">local</span> <span class="v">peer2_ifname</span>=<span class="s">"veth_${bridge1_ifname}"</span>  <span class="c"># e.g. "veth_br10"</span>
+
+  <span class="c"># Create the veth pair connecting bridge1_ns ↔ bridge2_ns</span>
+  <span class="f">ip link add</span> <span class="v">${peer1_ifname}</span> <span class="n">netns</span> <span class="v">${bridge1_nsname}</span> <span class="n">type veth peer</span> \
+              <span class="v">${peer2_ifname}</span> <span class="n">netns</span> <span class="v">${bridge2_nsname}</span>
+
+  <span class="c"># Turn both ends on</span>
+  <span class="f">ip netns exec</span> <span class="v">${bridge1_nsname}</span> <span class="f">ip link set</span> <span class="v">${peer1_ifname}</span> <span class="n">up</span>
+  <span class="f">ip netns exec</span> <span class="v">${bridge2_nsname}</span> <span class="f">ip link set</span> <span class="v">${peer2_ifname}</span> <span class="n">up</span>
+
+  <span class="c"># Plug each end into its respective bridge (like a patch cable between switches)</span>
+  <span class="f">ip netns exec</span> <span class="v">${bridge1_nsname}</span> <span class="f">ip link set</span> <span class="v">${peer1_ifname}</span> <span class="n">master</span> <span class="v">${bridge1_ifname}</span>
+  <span class="f">ip netns exec</span> <span class="v">${bridge2_nsname}</span> <span class="f">ip link set</span> <span class="v">${peer2_ifname}</span> <span class="n">master</span> <span class="v">${bridge2_ifname}</span>
+<span class="p">}</span></code></div>
+  </div>
+
+  <!-- ethsend -->
+  <h3 style="font-size:1.1rem;font-weight:700;margin:32px 0 16px;color:var(--text)">The <code>ethsend</code> tool — Manual Ethernet Frames</h3>
+  <div class="prose"><p>This is a Python script that sends raw Ethernet frames. It bypasses TCP/IP completely and works purely at Layer 2 — like building and posting a letter by hand.</p></div>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-title">ethsend.py — fully annotated</span><span class="code-lang">python</span></div>
+    <div class="code-body"><code><span class="c">#!/usr/bin/env python3
+# Usage: ethsend eth0 ff:ff:ff:ff:ff:ff 'Hello everybody!'
+#        ethsend eth0 06:e5:f0:20:af:7a 'Hello specific MAC!'</span>
+
+<span class="k">import</span> <span class="v">fcntl</span>    <span class="c"># For reading interface info (MAC address)</span>
+<span class="k">import</span> <span class="v">socket</span>   <span class="c"># For creating the raw network socket</span>
+<span class="k">import</span> <span class="v">struct</span>   <span class="c"># For packing binary data</span>
+<span class="k">import</span> <span class="v">sys</span>      <span class="c"># For reading command-line arguments</span>
+
+<span class="k">def</span> <span class="f">send_frame</span>(ifname, dstmac, eth_type, payload):
+  <span class="c"># Create a RAW socket — bypasses TCP/IP, works at layer 2</span>
+  <span class="c"># AF_PACKET = address family for raw packet access</span>
+  <span class="c"># SOCK_RAW  = raw socket (no header stripping)</span>
+  s = <span class="v">socket</span>.<span class="f">socket</span>(socket.AF_PACKET, socket.SOCK_RAW)
+
+  <span class="c"># Bind the socket to the network interface (e.g. "eth1")</span>
+  s.<span class="f">bind</span>((ifname, <span class="n">0</span>))
+
+  <span class="c"># Get THIS interface's own MAC address using ioctl (kernel call)</span>
+  info = <span class="v">fcntl</span>.<span class="f">ioctl</span>(s.fileno(), <span class="n">0x8927</span>,
+                     struct.pack(<span class="s">'256s'</span>, bytes(ifname, <span class="s">'utf-8'</span>)[:<span class="n">15</span>]))
+  srcmac = <span class="s">':'</span>.join(<span class="s">'%02x'</span> % b <span class="k">for</span> b <span class="k">in</span> info[<span class="n">18</span>:<span class="n">24</span>])
+  <span class="c"># ↑ Extracts 6 bytes from position 18-24 of the ioctl response = MAC address</span>
+
+  payload_bytes = payload.<span class="f">encode</span>(<span class="s">'utf-8'</span>)
+  assert <span class="f">len</span>(payload_bytes) &lt;= <span class="n">1500</span>  <span class="c"># Ethernet max payload is 1500 bytes (MTU)</span>
+
+  <span class="c"># BUILD the Ethernet frame manually:
+  # [6 bytes dest MAC] + [6 bytes src MAC] + [2 bytes EtherType] + [payload]</span>
+  frame = <span class="f">human_mac_to_bytes</span>(dstmac) + \    <span class="c"># Destination MAC</span>
+          <span class="f">human_mac_to_bytes</span>(srcmac) + \     <span class="c"># Source MAC (ours)</span>
+          eth_type + \                         <span class="c"># Protocol type (custom 0x7a05)</span>
+          payload_bytes                         <span class="c"># The actual message</span>
+
+  <span class="k">return</span> s.<span class="f">send</span>(frame)  <span class="c"># Send it onto the wire!</span>
+
+<span class="k">def</span> <span class="f">human_mac_to_bytes</span>(addr):
+  <span class="k">return</span> bytes.<span class="f">fromhex</span>(addr.<span class="f">replace</span>(<span class="s">':'</span>, <span class="s">''</span>))
+  <span class="c"># "06:e5:f0:20:af:7a" → b'\x06\xe5\xf0\x20\xaf\x7a' (6 raw bytes)</span>
+
+<span class="k">def</span> <span class="f">main</span>():
+  ifname  = sys.argv[<span class="n">1</span>]   <span class="c"># e.g. "eth1"</span>
+  dstmac  = sys.argv[<span class="n">2</span>]   <span class="c"># e.g. "ff:ff:ff:ff:ff:ff" (broadcast)</span>
+  payload = sys.argv[<span class="n">3</span>]   <span class="c"># e.g. "Hello all!"</span>
+  ethtype = <span class="s">b'\x7A\x05'</span>   <span class="c"># Custom EtherType — won't clash with real protocols</span>
+  <span class="f">send_frame</span>(ifname, dstmac, ethtype, payload)
+
+<span class="k">if</span> __name__ == <span class="s">"__main__"</span>:
+  <span class="f">main</span>()</code></div>
+  </div>
+
+  <div class="callout info"><strong>Why <code>AF_PACKET + SOCK_RAW</code>?</strong> Normal programs use sockets at Layer 4 (TCP/UDP). <code>AF_PACKET</code> is a special socket type that lets you send/receive raw Ethernet frames — no IP, no TCP, just pure Layer 2. It requires root (or the <code>CAP_NET_RAW</code> capability) because it's very powerful.</div>
+</section>
+
+<!-- ████████ SECTION 6: EXAMPLE 1 ████████ -->
+<section class="section fade" id="example1">
+  <div class="section-eyebrow">Lab Example 01</div>
+  <h2>Multiple Hosts, One Switch</h2>
+  <div class="lead">The simplest scenario: three "computers" (namespaces) all connected to one virtual switch (bridge). All three form a single broadcast domain.</div>
+
+  <div class="diagram">
+    <div class="diagram-label">Topology — Example 1</div>
+    <div class="nd-wrap">
+      <svg class="net-svg" viewBox="0 0 680 260" height="260" width="100%">
+        <defs>
+          <marker id="a1" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#ff7b72"/></marker>
+        </defs>
+        <!-- Bridge namespace -->
+        <rect x="190" y="160" width="300" height="80" rx="10" fill="rgba(188,140,255,0.06)" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="340" y="180" text-anchor="middle" font-size="9" fill="#bc8cff" font-family="JetBrains Mono">NAMESPACE: bridge1</text>
+        <rect x="250" y="188" width="180" height="36" rx="6" fill="rgba(188,140,255,0.15)" stroke="#bc8cff" stroke-width="1"/>
+        <text x="340" y="200" text-anchor="middle" font-size="9" fill="#bc8cff" font-family="JetBrains Mono" font-weight="600">br1 (switch)</text>
+        <text x="340" y="216" text-anchor="middle" font-size="8" fill="#8b949e" font-family="JetBrains Mono">MAC table: learns host locations</text>
+
+        <!-- Hosts -->
+        <rect x="20" y="20" width="150" height="100" rx="8" fill="rgba(88,166,255,0.06)" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="95" y="40" text-anchor="middle" font-size="9" fill="#58a6ff" font-family="JetBrains Mono">NS: host1</text>
+        <text x="95" y="72" text-anchor="middle" font-size="22">🖥️</text>
+        <text x="95" y="100" text-anchor="middle" font-size="8" fill="#8b949e" font-family="JetBrains Mono">eth1 (PC-A1)</text>
+
+        <rect x="265" y="20" width="150" height="100" rx="8" fill="rgba(63,185,80,0.06)" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="340" y="40" text-anchor="middle" font-size="9" fill="#3fb950" font-family="JetBrains Mono">NS: host2</text>
+        <text x="340" y="72" text-anchor="middle" font-size="22">🖥️</text>
+        <text x="340" y="100" text-anchor="middle" font-size="8" fill="#8b949e" font-family="JetBrains Mono">eth2 (PC-A2)</text>
+
+        <rect x="510" y="20" width="150" height="100" rx="8" fill="rgba(255,166,87,0.06)" stroke="#ffa657" stroke-width="1.5"/>
+        <text x="585" y="40" text-anchor="middle" font-size="9" fill="#ffa657" font-family="JetBrains Mono">NS: host3</text>
+        <text x="585" y="72" text-anchor="middle" font-size="22">🖥️</text>
+        <text x="585" y="100" text-anchor="middle" font-size="8" fill="#8b949e" font-family="JetBrains Mono">eth3 (PC-A3)</text>
+
+        <!-- Cables -->
+        <line x1="95"  y1="120" x2="270" y2="188" stroke="#484f58" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <line x1="340" y1="120" x2="340" y2="188" stroke="#484f58" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <line x1="585" y1="120" x2="410" y2="188" stroke="#484f58" stroke-width="1.5" stroke-dasharray="5,3"/>
+
+        <!-- Broadcast domain -->
+        <rect x="5" y="5" width="670" height="250" rx="14" fill="none" stroke="#ff7b72" stroke-width="1.5" stroke-dasharray="8,4"/>
+        <text x="16" y="246" font-size="9" fill="#ff7b72" font-family="JetBrains Mono">📡 ONE BROADCAST DOMAIN</text>
+
+        <!-- Broadcast arrows from host1 -->
+        <path d="M 115 60 Q 200 140 330 60" fill="none" stroke="#ff7b72" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#a1)"/>
+        <path d="M 115 60 Q 300 160 565 60" fill="none" stroke="#ff7b72" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#a1)"/>
+        <text x="245" y="50" font-size="8" fill="#ff7b72" font-family="JetBrains Mono">broadcast</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num active">1</div>
+      <div class="step-content">
+        <div class="step-title">Create the bridge namespace</div>
+        <div class="step-desc">Set up the "switch room" — a namespace containing a Linux bridge device.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num active">2</div>
+      <div class="step-content">
+        <div class="step-title">Create three host namespaces, each wired to the bridge</div>
+        <div class="step-desc">Each host gets its own isolated namespace and is connected to the bridge via a veth pair.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num active">3</div>
+      <div class="step-content">
+        <div class="step-title">Start tcpdump on host2 and host3</div>
+        <div class="step-desc">tcpdump is a "packet sniffer" — it listens on a network interface and prints every frame it sees. We're watching what arrives at host2 and host3.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num active">4</div>
+      <div class="step-content">
+        <div class="step-title">Send a broadcast from host1</div>
+        <div class="step-desc">Using ethsend to send a frame with destination MAC ff:ff:ff:ff:ff:ff — the broadcast address. This should arrive at both host2 and host3.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num active">5</div>
+      <div class="step-content">
+        <div class="step-title">Send unicast frames to specific MACs</div>
+        <div class="step-desc">Demonstrates that the switch delivers to the right port only when you know the MAC address.</div>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="font-size:1rem;font-weight:700;margin:24px 0 12px;color:var(--text)">The Commands — Fully Explained</h3>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-title">Lab 1 — Full command sequence</span><span class="code-lang">bash</span></div>
+    <div class="code-body"><code><span class="c">## ── SETUP ──────────────────────────────────────────────────────</span>
+
+<span class="c"># Create the bridge (virtual switch) namespace</span>
+<span class="cmd">create_bridge bridge1 br1</span>
+
+<span class="c"># Connect three hosts to the bridge</span>
+<span class="cmd">create_end_host host1 eth1 bridge1 br1</span>
+<span class="cmd">create_end_host host2 eth2 bridge1 br1</span>
+<span class="cmd">create_end_host host3 eth3 bridge1 br1</span>
+
+<span class="c">## ── MONITORING (open separate terminals) ────────────────────────</span>
+
+<span class="c"># Terminal 2: Watch ALL traffic on host2's eth2 interface
+# nsenter --net=...  means "enter network namespace of host2"
+# tcpdump            = packet sniffer tool
+# -i eth2            = watch this specific interface
+# ether proto 0x7a05 = only show frames with our custom EtherType</span>
+<span class="cmd">nsenter --net=/var/run/netns/host2 \
+  tcpdump -i eth2 ether proto 0x7a05</span>
+
+<span class="c"># Terminal 3: Same thing but for host3</span>
+<span class="cmd">nsenter --net=/var/run/netns/host3 \
+  tcpdump -i eth3 ether proto 0x7a05</span>
+
+<span class="c">## ── BROADCAST from host1 (Terminal 4) ──────────────────────────</span>
+
+<span class="c"># Send a broadcast frame from host1 to ff:ff:ff:ff:ff:ff
+# nsenter: step into host1's namespace
+# ethsend: our Python tool
+#   eth1             = use this interface
+#   ff:ff:ff:ff:ff:ff = send to EVERYONE (broadcast MAC)
+#   'Hello all!'     = the payload/message</span>
+<span class="cmd">nsenter --net=/var/run/netns/host1 \
+  ethsend eth1 ff:ff:ff:ff:ff:ff 'Hello all!'</span>
+
+<span class="c">## ── UNICAST to specific MAC ─────────────────────────────────────</span>
+
+<span class="c"># First, find host2's actual MAC address:
+# ip link show eth2  = list interface details
+# grep ether         = find the line with the MAC address
+# awk '{print $2}'   = extract just the MAC value</span>
+<span class="cmd">ETH2_MAC=$(ip netns exec host2 ip link show eth2 | grep ether | awk '{print $2}')</span>
+
+<span class="c"># Now send directly to host2's MAC address (unicast)</span>
+<span class="cmd">nsenter --net=/var/run/netns/host1 \
+  ethsend eth1 ${ETH2_MAC} "Hello host2!"</span>
+
+<span class="c">## ── CLEANUP ─────────────────────────────────────────────────────</span>
+<span class="cmd">ip netns delete bridge1</span>
+<span class="cmd">ip netns delete host1</span>
+<span class="cmd">ip netns delete host2</span>
+<span class="cmd">ip netns delete host3</span></code></div>
+  </div>
+
+  <h3 style="font-size:1rem;font-weight:700;margin:28px 0 12px;color:var(--text)">Understanding <code>tcpdump</code></h3>
+
+  <div class="cmd-explain">
+    <div class="cmd-explain-header">tcpdump -i eth2 ether proto 0x7a05</div>
+    <div class="cmd-explain-body">
+      <div class="cmd-part"><span class="cmd-token cmd-prog">tcpdump</span><div class="cmd-desc"><strong>Packet sniffer.</strong> It sits on a network interface and prints every packet that arrives, like a security camera for network traffic.</div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-flag">-i eth2</span><div class="cmd-desc"><strong>Which interface to listen on.</strong> The <code>-i</code> means "interface." Here we're watching <code>eth2</code> — host2's network card.</div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-arg">ether proto 0x7a05</span><div class="cmd-desc"><strong>Filter: only show Ethernet frames with EtherType <code>0x7a05</code>.</strong> This is the custom type ethsend uses. Without this filter, you'd see all kinds of background network traffic and it'd be messy. This keeps the output clean.</div></div>
+    </div>
+  </div>
+
+  <div class="cmd-explain">
+    <div class="cmd-explain-header">ip link show eth2 | grep ether | awk '{print $2}'</div>
+    <div class="cmd-explain-body">
+      <div class="cmd-part"><span class="cmd-token cmd-prog">ip link show eth2</span><div class="cmd-desc"><strong>Show details about interface eth2.</strong> Output looks like:<br><code>3: eth2@eth2b: &lt;BROADCAST&gt; mtu 1500<br>&nbsp;&nbsp;&nbsp;&nbsp;link/ether <strong>aa:bb:cc:dd:ee:ff</strong> brd ff:ff:ff:ff:ff:ff</code></div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-flag">| grep ether</span><div class="cmd-desc"><strong>Pipe the output, keep only the line containing "ether".</strong> The pipe <code>|</code> sends output of one command as input to the next. <code>grep ether</code> filters to just the line with the MAC address.</div></div>
+      <div class="cmd-part"><span class="cmd-token cmd-flag">| awk '{print $2}'</span><div class="cmd-desc"><strong>Extract just the second word.</strong> awk splits each line into fields. <code>$2</code> is the second field — which is the actual MAC address like <code>aa:bb:cc:dd:ee:ff</code>. We save that into <code>ETH2_MAC</code>.</div></div>
+    </div>
+  </div>
+
+  <div class="callout key"><strong>What You Should Observe</strong> When host1 sends <code>ff:ff:ff:ff:ff:ff</code>, <strong>both</strong> host2 and host3's tcpdump windows print "Hello all!" — proving they're in the same broadcast domain. When host1 sends unicast to host2's MAC, only host2's tcpdump shows it.</div>
+</section>
+
+<!-- ████████ SECTION 7: EXAMPLE 2 ████████ -->
+<section class="section fade" id="example2">
+  <div class="section-eyebrow">Lab Example 02</div>
+  <h2>Two Interconnected Switches</h2>
+  <div class="lead">We create TWO separate bridges (switches) each with their own hosts — then connect the bridges together. The result is still ONE broadcast domain, because a bridge passes broadcasts.</div>
+
+  <div class="analogy" data-emoji="🏘️">
+    <div class="analogy-label">Analogy — Two streets, connected by an alley</div>
+    <p>Street A has houses 10 and 11. Street B has houses 20 and 21. Initially they're separate — a shout on Street A doesn't reach Street B. But when you open an alley connecting them, <strong>a shout now carries across both streets</strong>. The alley = the veth pair connecting the two bridges.</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-label">Topology — Example 2: Two interconnected bridges</div>
+    <div class="nd-wrap">
+      <svg class="net-svg" viewBox="0 0 680 320" height="320" width="100%">
+        <defs>
+          <marker id="a2" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#ff7b72"/></marker>
+        </defs>
+
+        <!-- Broadcast domain wrapper -->
+        <rect x="5" y="5" width="670" height="310" rx="14" fill="none" stroke="#ff7b72" stroke-width="1.5" stroke-dasharray="8,4"/>
+        <text x="16" y="300" font-size="9" fill="#ff7b72" font-family="JetBrains Mono">📡 STILL ONE BROADCAST DOMAIN (despite two switches!)</text>
+
+        <!-- Bridge 1 namespace -->
+        <rect x="30" y="150" width="250" height="80" rx="10" fill="rgba(188,140,255,0.06)" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="155" y="170" text-anchor="middle" font-size="9" fill="#bc8cff" font-family="JetBrains Mono">NS: bridge10</text>
+        <rect x="60" y="178" width="160" height="32" rx="6" fill="rgba(188,140,255,0.15)" stroke="#bc8cff" stroke-width="1"/>
+        <text x="140" y="192" text-anchor="middle" font-size="8" fill="#bc8cff" font-family="JetBrains Mono" font-weight="600">br10 (Switch A)</text>
+        <text x="140" y="204" text-anchor="middle" font-size="7" fill="#484f58" font-family="JetBrains Mono">Ports: eth10b, eth11b, veth_br20</text>
+
+        <!-- Bridge 2 namespace -->
+        <rect x="400" y="150" width="250" height="80" rx="10" fill="rgba(57,208,216,0.06)" stroke="#39d0d8" stroke-width="1.5"/>
+        <text x="525" y="170" text-anchor="middle" font-size="9" fill="#39d0d8" font-family="JetBrains Mono">NS: bridge20</text>
+        <rect x="430" y="178" width="160" height="32" rx="6" fill="rgba(57,208,216,0.15)" stroke="#39d0d8" stroke-width="1"/>
+        <text x="510" y="192" text-anchor="middle" font-size="8" fill="#39d0d8" font-family="JetBrains Mono" font-weight="600">br20 (Switch B)</text>
+        <text x="510" y="204" text-anchor="middle" font-size="7" fill="#484f58" font-family="JetBrains Mono">Ports: eth20b, eth21b, veth_br10</text>
+
+        <!-- Patch cord between bridges -->
+        <line x1="220" y1="194" x2="400" y2="194" stroke="#ffa657" stroke-width="2.5" stroke-dasharray="5,3"/>
+        <text x="310" y="183" text-anchor="middle" font-size="8" fill="#ffa657" font-family="JetBrains Mono">patch cord (veth)</text>
+        <text x="310" y="210" text-anchor="middle" font-size="8" fill="#484f58" font-family="JetBrains Mono">connect_bridges</text>
+
+        <!-- Host 10 -->
+        <rect x="20" y="30" width="130" height="90" rx="8" fill="rgba(88,166,255,0.06)" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="85" y="50" text-anchor="middle" font-size="8" fill="#58a6ff" font-family="JetBrains Mono">NS: host10</text>
+        <text x="85" y="78" text-anchor="middle" font-size="20">🖥️</text>
+        <text x="85" y="106" text-anchor="middle" font-size="7" fill="#8b949e" font-family="JetBrains Mono">eth10</text>
+        <line x1="85" y1="120" x2="100" y2="178" stroke="#484f58" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- Host 11 -->
+        <rect x="180" y="30" width="130" height="90" rx="8" fill="rgba(88,166,255,0.06)" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="245" y="50" text-anchor="middle" font-size="8" fill="#58a6ff" font-family="JetBrains Mono">NS: host11</text>
+        <text x="245" y="78" text-anchor="middle" font-size="20">🖥️</text>
+        <text x="245" y="106" text-anchor="middle" font-size="7" fill="#8b949e" font-family="JetBrains Mono">eth11</text>
+        <line x1="245" y1="120" x2="200" y2="178" stroke="#484f58" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- Host 20 -->
+        <rect x="390" y="30" width="130" height="90" rx="8" fill="rgba(57,208,216,0.06)" stroke="#39d0d8" stroke-width="1.5"/>
+        <text x="455" y="50" text-anchor="middle" font-size="8" fill="#39d0d8" font-family="JetBrains Mono">NS: host20</text>
+        <text x="455" y="78" text-anchor="middle" font-size="20">🖥️</text>
+        <text x="455" y="106" text-anchor="middle" font-size="7" fill="#8b949e" font-family="JetBrains Mono">eth20</text>
+        <line x1="455" y1="120" x2="460" y2="178" stroke="#484f58" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- Host 21 -->
+        <rect x="545" y="30" width="130" height="90" rx="8" fill="rgba(57,208,216,0.06)" stroke="#39d0d8" stroke-width="1.5"/>
+        <text x="610" y="50" text-anchor="middle" font-size="8" fill="#39d0d8" font-family="JetBrains Mono">NS: host21</text>
+        <text x="610" y="78" text-anchor="middle" font-size="20">🖥️</text>
+        <text x="610" y="106" text-anchor="middle" font-size="7" fill="#8b949e" font-family="JetBrains Mono">eth21</text>
+        <line x1="610" y1="120" x2="570" y2="178" stroke="#484f58" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- Broadcast path arrows -->
+        <path d="M 85 65 Q 245 145 230 65" fill="none" stroke="#ff7b72" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#a2)"/>
+        <path d="M 85 65 Q 310 145 440 65" fill="none" stroke="#ff7b72" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#a2)"/>
+        <path d="M 85 65 Q 340 160 595 65" fill="none" stroke="#ff7b72" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#a2)"/>
+        <text x="40" y="260" font-size="8" fill="#ff7b72" font-family="JetBrains Mono">host10 broadcasts → crosses bridge → reaches ALL 3 others</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-title">Lab 2 — Full command sequence</span><span class="code-lang">bash</span></div>
+    <div class="code-body"><code><span class="c">## ── SETUP: Create two isolated segments ────────────────────────</span>
+
+<span class="c"># Segment 1: bridge10 with two hosts</span>
+<span class="cmd">create_bridge bridge10 br10</span>
+<span class="cmd">create_end_host host10 eth10 bridge10 br10</span>
+<span class="cmd">create_end_host host11 eth11 bridge10 br10</span>
+
+<span class="c"># Segment 2: bridge20 with two hosts</span>
+<span class="cmd">create_bridge bridge20 br20</span>
+<span class="cmd">create_end_host host20 eth20 bridge20 br20</span>
+<span class="cmd">create_end_host host21 eth21 bridge20 br20</span>
+
+<span class="c">## ── CONNECT THE TWO BRIDGES (the KEY step) ─────────────────────
+# This is what merges the two broadcast domains into one.
+# It creates a veth pair:
+#   - One end (veth_br20) plugged into br10
+#   - Other end (veth_br10) plugged into br20
+# Like running a patch cable between two switches in a server room</span>
+<span class="cmd">connect_bridges bridge10 br10 bridge20 br20</span>
+
+<span class="c">## ── MONITOR on hosts in both segments ──────────────────────────</span>
+
+<span class="c"># Watch host11 (second host on Switch A)</span>
+<span class="cmd">nsenter --net=/var/run/netns/host11 \
+  tcpdump -i eth11 ether proto 0x7a05</span>
+
+<span class="c"># Watch host20 (first host on Switch B)</span>
+<span class="cmd">nsenter --net=/var/run/netns/host20 \
+  tcpdump -i eth20 ether proto 0x7a05</span>
+
+<span class="c"># Watch host21 (second host on Switch B)</span>
+<span class="cmd">nsenter --net=/var/run/netns/host21 \
+  tcpdump -i eth21 ether proto 0x7a05</span>
+
+<span class="c">## ── BROADCAST from host10 ───────────────────────────────────────
+# Even though host10 is on Switch A, the broadcast
+# will cross the bridge connection and reach host20 and host21 on Switch B!</span>
+<span class="cmd">nsenter --net=/var/run/netns/host10 \
+  ethsend eth10 ff:ff:ff:ff:ff:ff 'Hello all!'</span>
+
+<span class="c">## ── CLEANUP ─────────────────────────────────────────────────────</span>
+<span class="cmd">ip netns delete bridge10 bridge20 host10 host11 host20 host21</span></code></div>
+  </div>
+
+  <div class="callout key"><strong>The Critical Insight</strong> Before <code>connect_bridges</code>: two separate broadcast domains (host10 &amp; host11 can't reach host20 &amp; host21). After <code>connect_bridges</code>: <strong>ONE broadcast domain</strong>. The bridge passes broadcasts across — it has no wall. This is exactly the statement from the lab: "Multiple L2 segments can be bridged to create a bigger broadcast domain."</div>
+
+  <div class="alt-box">
+    <div class="alt-box-label">Alternative — Manual connect_bridges commands</div>
+    <div class="code-block" style="margin:0">
+      <div class="code-header"><span class="code-title">What connect_bridges bridge10 br10 bridge20 br20 actually does</span><span class="code-lang">bash</span></div>
+      <div class="code-body"><code><span class="c"># Create veth pair: one end in bridge10 ns, other end in bridge20 ns</span>
+<span class="cmd">ip link add veth_br20 netns bridge10 type veth peer veth_br10 netns bridge20</span>
+
+<span class="c"># Turn both ends on</span>
+<span class="cmd">ip netns exec bridge10 ip link set veth_br20 up</span>
+<span class="cmd">ip netns exec bridge20 ip link set veth_br10 up</span>
+
+<span class="c"># Plug veth_br20 into br10 (Switch A)</span>
+<span class="cmd">ip netns exec bridge10 ip link set veth_br20 master br10</span>
+
+<span class="c"># Plug veth_br10 into br20 (Switch B)</span>
+<span class="cmd">ip netns exec bridge20 ip link set veth_br10 master br20</span>
+
+<span class="c"># Verify the two bridges are connected</span>
+<span class="cmd">ip netns exec bridge10 bridge link show</span>
+<span class="cmd">ip netns exec bridge20 bridge link show</span></code></div>
+    </div>
+  </div>
+</section>
+
+<!-- ████████ SECTION 8: EXAMPLE 3 ████████ -->
+<section class="section fade" id="example3">
+  <div class="section-eyebrow">Lab Example 03</div>
+  <h2>Hierarchical Internetworking</h2>
+  <div class="lead">Real data centres don't use flat "everyone connects to everyone" topologies — they use a tree structure. Top-level switches connect to lower-level switches which connect to hosts. This lab shows that even a tree of switches is still one broadcast domain.</div>
+
+  <div class="analogy" data-emoji="🌳">
+    <div class="analogy-label">Analogy — A Tree of Mailrooms</div>
+    <p>Imagine two neighbourhood mailrooms (bridge100 and bridge200), each serving houses in their area. A <strong>central post office</strong> (bridge300) sits above both. Mail between the two neighbourhoods goes: house → local mailroom → central post office → local mailroom → house. <strong>A broadcast announcement goes all the way down every branch of the tree.</strong></p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-label">Topology — Example 3: Hierarchical switches</div>
+    <div class="nd-wrap">
+      <svg class="net-svg" viewBox="0 0 680 360" height="360" width="100%">
+        <defs>
+          <marker id="a3" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#ff7b72"/></marker>
+        </defs>
+
+        <!-- Broadcast domain wrapper -->
+        <rect x="5" y="5" width="670" height="350" rx="14" fill="none" stroke="#ff7b72" stroke-width="1.5" stroke-dasharray="8,4"/>
+        <text x="16" y="342" font-size="9" fill="#ff7b72" font-family="JetBrains Mono">📡 STILL ONE BROADCAST DOMAIN (flat vs hierarchical = same result logically!)</text>
+
+        <!-- Top bridge300 -->
+        <rect x="250" y="30" width="180" height="60" rx="10" fill="rgba(255,166,87,0.08)" stroke="#ffa657" stroke-width="1.5"/>
+        <text x="340" y="50" text-anchor="middle" font-size="9" fill="#ffa657" font-family="JetBrains Mono">NS: bridge300</text>
+        <rect x="268" y="56" width="144" height="22" rx="4" fill="rgba(255,166,87,0.15)" stroke="#ffa657" stroke-width="1"/>
+        <text x="340" y="71" text-anchor="middle" font-size="8" fill="#ffa657" font-family="JetBrains Mono" font-weight="600">br300 (Core Switch)</text>
+
+        <!-- Bridge100 -->
+        <rect x="60" y="175" width="220" height="60" rx="10" fill="rgba(188,140,255,0.06)" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="170" y="195" text-anchor="middle" font-size="9" fill="#bc8cff" font-family="JetBrains Mono">NS: bridge100</text>
+        <rect x="75" y="200" width="190" height="22" rx="4" fill="rgba(188,140,255,0.15)" stroke="#bc8cff" stroke-width="1"/>
+        <text x="170" y="215" text-anchor="middle" font-size="8" fill="#bc8cff" font-family="JetBrains Mono" font-weight="600">br100 (Access Switch I)</text>
+
+        <!-- Bridge200 -->
+        <rect x="400" y="175" width="220" height="60" rx="10" fill="rgba(57,208,216,0.06)" stroke="#39d0d8" stroke-width="1.5"/>
+        <text x="510" y="195" text-anchor="middle" font-size="9" fill="#39d0d8" font-family="JetBrains Mono">NS: bridge200</text>
+        <rect x="415" y="200" width="190" height="22" rx="4" fill="rgba(57,208,216,0.15)" stroke="#39d0d8" stroke-width="1"/>
+        <text x="510" y="215" text-anchor="middle" font-size="8" fill="#39d0d8" font-family="JetBrains Mono" font-weight="600">br200 (Access Switch II)</text>
+
+        <!-- Uplinks -->
+        <line x1="200" y1="175" x2="290" y2="90" stroke="#484f58" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <text x="230" y="128" text-anchor="middle" font-size="7" fill="#484f58" font-family="JetBrains Mono" transform="rotate(-30,230,128)">uplink veth</text>
+        <line x1="480" y1="175" x2="390" y2="90" stroke="#484f58" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <text x="450" y="128" text-anchor="middle" font-size="7" fill="#484f58" font-family="JetBrains Mono" transform="rotate(30,450,128)">uplink veth</text>
+
+        <!-- Hosts under bridge100 -->
+        <rect x="30" y="270" width="120" height="70" rx="8" fill="rgba(88,166,255,0.06)" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="90" y="289" text-anchor="middle" font-size="8" fill="#58a6ff" font-family="JetBrains Mono">NS: host100</text>
+        <text x="90" y="315" text-anchor="middle" font-size="18">🖥️</text>
+        <text x="90" y="332" text-anchor="middle" font-size="7" fill="#8b949e" font-family="JetBrains Mono">eth100</text>
+        <line x1="90" y1="270" x2="110" y2="235" stroke="#484f58" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <rect x="185" y="270" width="120" height="70" rx="8" fill="rgba(88,166,255,0.06)" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="245" y="289" text-anchor="middle" font-size="8" fill="#58a6ff" font-family="JetBrains Mono">NS: host101</text>
+        <text x="245" y="315" text-anchor="middle" font-size="18">🖥️</text>
+        <text x="245" y="332" text-anchor="middle" font-size="7" fill="#8b949e" font-family="JetBrains Mono">eth101</text>
+        <line x1="245" y1="270" x2="220" y2="235" stroke="#484f58" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- Hosts under bridge200 -->
+        <rect x="370" y="270" width="120" height="70" rx="8" fill="rgba(57,208,216,0.06)" stroke="#39d0d8" stroke-width="1.5"/>
+        <text x="430" y="289" text-anchor="middle" font-size="8" fill="#39d0d8" font-family="JetBrains Mono">NS: host200</text>
+        <text x="430" y="315" text-anchor="middle" font-size="18">🖥️</text>
+        <text x="430" y="332" text-anchor="middle" font-size="7" fill="#8b949e" font-family="JetBrains Mono">eth200</text>
+        <line x1="430" y1="270" x2="460" y2="235" stroke="#484f58" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <rect x="530" y="270" width="120" height="70" rx="8" fill="rgba(57,208,216,0.06)" stroke="#39d0d8" stroke-width="1.5"/>
+        <text x="590" y="289" text-anchor="middle" font-size="8" fill="#39d0d8" font-family="JetBrains Mono">NS: host201</text>
+        <text x="590" y="315" text-anchor="middle" font-size="18">🖥️</text>
+        <text x="590" y="332" text-anchor="middle" font-size="7" fill="#8b949e" font-family="JetBrains Mono">eth201</text>
+        <line x1="590" y1="270" x2="560" y2="235" stroke="#484f58" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- Broadcast path from host100 -->
+        <path d="M 90 310 Q 90 170 260 50 Q 440 170 430 300" fill="none" stroke="#ff7b72" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#a3)"/>
+        <path d="M 90 310 Q 90 170 260 50 Q 440 170 585 300" fill="none" stroke="#ff7b72" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#a3)"/>
+        <path d="M 90 310 Q 90 240 240 285" fill="none" stroke="#ff7b72" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#a3)"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-title">Lab 3 — Full command sequence</span><span class="code-lang">bash</span></div>
+    <div class="code-body"><code><span class="c">## ── SETUP: Create two lower-level segments ──────────────────────</span>
+
+<span class="c"># Lower-layer segment I (Access Switch A)</span>
+<span class="cmd">create_bridge bridge100 br100</span>
+<span class="cmd">create_end_host host100 eth100 bridge100 br100</span>
+<span class="cmd">create_end_host host101 eth101 bridge100 br100</span>
+
+<span class="c"># Lower-layer segment II (Access Switch B)</span>
+<span class="cmd">create_bridge bridge200 br200</span>
+<span class="cmd">create_end_host host200 eth200 bridge200 br200</span>
+<span class="cmd">create_end_host host201 eth201 bridge200 br200</span>
+
+<span class="c">## ── CREATE the higher-layer (core) switch ───────────────────────</span>
+<span class="cmd">create_bridge bridge300 br300</span>
+
+<span class="c">## ── CONNECT both lower switches to the core switch ──────────────
+# This builds the tree topology:
+#        br300 (core)
+#       /            \
+#   br100          br200
+#   /   \          /   \
+# h100 h101     h200  h201</span>
+<span class="cmd">connect_bridges bridge100 br100 bridge300 br300</span>
+<span class="cmd">connect_bridges bridge200 br200 bridge300 br300</span>
+
+<span class="c">## ── MONITOR on all non-source hosts ────────────────────────────</span>
+
+<span class="c"># Second host on bridge100</span>
+<span class="cmd">nsenter --net=/var/run/netns/host101 \
+  tcpdump -i eth101 ether proto 0x7a05</span>
+
+<span class="c"># Both hosts on bridge200</span>
+<span class="cmd">nsenter --net=/var/run/netns/host200 \
+  tcpdump -i eth200 ether proto 0x7a05</span>
+<span class="cmd">nsenter --net=/var/run/netns/host201 \
+  tcpdump -i eth201 ether proto 0x7a05</span>
+
+<span class="c">## ── BROADCAST from host100 ──────────────────────────────────────
+# Path of broadcast:
+#   host100 → br100 → bridge connection → br300 → bridge connection → br200
+#   → delivered to host200 AND host201
+# Also: br100 delivers to host101 directly</span>
+<span class="cmd">nsenter --net=/var/run/netns/host100 \
+  ethsend eth100 ff:ff:ff:ff:ff:ff 'Hello all!'</span>
+
+<span class="c">## ── CLEANUP ─────────────────────────────────────────────────────</span>
+<span class="cmd">ip netns delete bridge100 bridge200 bridge300</span>
+<span class="cmd">ip netns delete host100 host101 host200 host201</span></code></div>
+  </div>
+
+  <div class="callout key"><strong>The Key Takeaway from Lab 3</strong> From every host's perspective, <strong>it doesn't matter</strong> whether the network is flat (all connected to one big switch) or hierarchical (tree of switches). A broadcast from any host reaches every other host. The logical view is always a single flat broadcast domain — no matter how complex the physical wiring is. This is exactly the diagram in the lab: <em>"Logically, there is no difference between flat and hierarchical interconnections."</em></div>
+</section>
+
+<!-- ████████ SECTION 9: ALL COMMANDS ████████ -->
+<section class="section fade" id="commands">
+  <div class="section-eyebrow">Section 09</div>
+  <h2>Complete Commands Reference</h2>
+  <div class="lead">Every single command used in this lab, explained in plain English.</div>
+
+  <table class="compare-table">
+    <thead>
+      <tr>
+        <th>Command</th>
+        <th>What It Does</th>
+        <th>Layer</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>ip netns add &lt;name&gt;</code></td>
+        <td>Create a new isolated network namespace (virtual computer)</td>
+        <td><span class="badge badge-blue">OS</span></td>
+      </tr>
+      <tr>
+        <td><code>ip netns exec &lt;ns&gt; &lt;cmd&gt;</code></td>
+        <td>Run a command inside a specific namespace</td>
+        <td><span class="badge badge-blue">OS</span></td>
+      </tr>
+      <tr>
+        <td><code>ip netns delete &lt;name&gt;</code></td>
+        <td>Delete a namespace (destroys all its interfaces too)</td>
+        <td><span class="badge badge-blue">OS</span></td>
+      </tr>
+      <tr>
+        <td><code>ip link set lo up</code></td>
+        <td>Activate the loopback interface (127.0.0.1) inside a namespace</td>
+        <td><span class="badge badge-green">L1/L2</span></td>
+      </tr>
+      <tr>
+        <td><code>ip link add &lt;name&gt; type bridge</code></td>
+        <td>Create a Linux bridge (virtual switch) device</td>
+        <td><span class="badge badge-green">L2</span></td>
+      </tr>
+      <tr>
+        <td><code>ip link add &lt;a&gt; type veth peer &lt;b&gt;</code></td>
+        <td>Create a veth pair (virtual cable) with two connected ends</td>
+        <td><span class="badge badge-green">L1/L2</span></td>
+      </tr>
+      <tr>
+        <td><code>ip link set &lt;iface&gt; up</code></td>
+        <td>Activate (turn on) a network interface</td>
+        <td><span class="badge badge-green">L1/L2</span></td>
+      </tr>
+      <tr>
+        <td><code>ip link set &lt;iface&gt; master &lt;bridge&gt;</code></td>
+        <td>Plug an interface into a bridge (like inserting a cable into a switch port)</td>
+        <td><span class="badge badge-green">L2</span></td>
+      </tr>
+      <tr>
+        <td><code>ip link show [iface]</code></td>
+        <td>Display network interfaces and their details (MAC address, state, etc.)</td>
+        <td><span class="badge badge-blue">OS</span></td>
+      </tr>
+      <tr>
+        <td><code>bridge link show</code></td>
+        <td>Show all ports attached to bridge devices in the current namespace</td>
+        <td><span class="badge badge-green">L2</span></td>
+      </tr>
+      <tr>
+        <td><code>bridge fdb show</code></td>
+        <td>Show the bridge's MAC address table (which MAC is on which port)</td>
+        <td><span class="badge badge-green">L2</span></td>
+      </tr>
+      <tr>
+        <td><code>tcpdump -i &lt;iface&gt; [filter]</code></td>
+        <td>Capture and display packets on an interface in real time</td>
+        <td><span class="badge badge-orange">Tool</span></td>
+      </tr>
+      <tr>
+        <td><code>nsenter --net=&lt;path&gt; &lt;cmd&gt;</code></td>
+        <td>Enter a namespace by file path and run a command there</td>
+        <td><span class="badge badge-blue">OS</span></td>
+      </tr>
+      <tr>
+        <td><code>ethsend &lt;iface&gt; &lt;dst-mac&gt; &lt;msg&gt;</code></td>
+        <td>Send a raw Ethernet frame with a custom message (custom tool)</td>
+        <td><span class="badge badge-green">L2</span></td>
+      </tr>
+      <tr>
+        <td><code>grep &lt;pattern&gt;</code></td>
+        <td>Search through text and print matching lines</td>
+        <td><span class="badge badge-purple">Shell</span></td>
+      </tr>
+      <tr>
+        <td><code>awk '{print $N}'</code></td>
+        <td>Extract the Nth word/column from each line of text</td>
+        <td><span class="badge badge-purple">Shell</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 style="font-size:1rem;font-weight:700;margin:32px 0 12px;color:var(--text)">Extra: Useful Verification Commands</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-title">Debugging & verification commands</span><span class="code-lang">bash</span></div>
+    <div class="code-body"><code><span class="c"># List all network namespaces on the machine</span>
+<span class="cmd">ip netns list</span>
+
+<span class="c"># See all interfaces inside a namespace</span>
+<span class="cmd">ip netns exec host1 ip link show</span>
+
+<span class="c"># See what ports are on a bridge</span>
+<span class="cmd">ip netns exec bridge1 bridge link show</span>
+
+<span class="c"># See the bridge's MAC address table (gets populated after traffic)</span>
+<span class="cmd">ip netns exec bridge1 bridge fdb show br br1</span>
+
+<span class="c"># See all namespaces' interface info at once</span>
+<span class="cmd">for ns in host1 host2 host3; do
+  echo "=== $ns ==="
+  ip netns exec $ns ip link show
+done</span>
+
+<span class="c"># Monitor traffic WITHOUT filtering (see everything)</span>
+<span class="cmd">nsenter --net=/var/run/netns/host2 tcpdump -i eth2 -e</span>
+<span class="c"># -e flag shows MAC addresses in tcpdump output</span>
+
+<span class="c"># Check if interface is up and running</span>
+<span class="cmd">ip netns exec host1 ip link show eth1</span>
+<span class="c"># Look for "state UP" in the output</span></code></div>
+  </div>
+
+  <div class="callout tip"><strong>The Logical vs. Physical Insight — Summary</strong> No matter how you wire the switches — flat, tree, ring, star — if they're all connected via bridges with no routers in between, they form <strong>one broadcast domain</strong>. The hosts don't know or care about the physical layout. To split into multiple broadcast domains, you need either a <strong>router</strong> (physical boundary) or <strong>VLANs</strong> (logical boundary).</div>
+</section>
+
+</main>
+
+<footer>
+  <p style="margin-bottom:8px">Based on the <strong>iximiuz Labs</strong> — "Networking Lab: Ethernet Broadcast Domains" by Ivan Velichko</p>
+  <p>Explained from first principles for networking beginners</p>
+</footer>
+
+<script>
+// Progress bar
+window.addEventListener('scroll', () => {
+  const total = document.body.scrollHeight - window.innerHeight;
+  const progress = (window.scrollY / total) * 100;
+  document.getElementById('progress').style.width = progress + '%';
+});
+
+// Nav active state
+const sections = ['foundations','namespace','veth','bridge','scripts','example1','example2','example3','commands'];
+const navLinks = document.querySelectorAll('#topnav a');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.getBoundingClientRect().top < 100) current = id;
+  });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+});
+
+// Fade in
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); });
+}, { threshold: 0.08 });
+document.querySelectorAll('.fade').forEach(el => obs.observe(el));
+</script>
+</body>
+</html>

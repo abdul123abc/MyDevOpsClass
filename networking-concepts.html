@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Networking Concepts — Visual Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#f5f0e8;
+  --paper:#fffdf7;
+  --ink:#1a1410;
+  --muted:#7a6e62;
+  --border:#d4c9b8;
+  --accent:#c1440e;
+  --accent2:#1a6b3c;
+  --accent3:#1a3d6b;
+  --hub:#e8a020;
+  --switch:#1a6b3c;
+  --bridge:#7b3fa0;
+  --router:#c1440e;
+  --vlan:#1a3d6b;
+  --vxlan:#7a1a6b;
+  --broadcast:#e05020;
+}
+
+body{
+  background:var(--bg);
+  font-family:'Space Grotesk',sans-serif;
+  color:var(--ink);
+  padding:0 0 80px;
+}
+
+/* NAV */
+nav{
+  position:sticky;top:0;z-index:100;
+  background:var(--ink);
+  display:flex;gap:0;overflow-x:auto;
+  scrollbar-width:none;
+}
+nav::-webkit-scrollbar{display:none}
+nav button{
+  background:none;border:none;
+  color:#a09080;
+  font-family:'Space Grotesk',sans-serif;
+  font-size:0.72rem;font-weight:700;
+  letter-spacing:1.5px;text-transform:uppercase;
+  padding:14px 18px;cursor:pointer;
+  white-space:nowrap;
+  border-bottom:3px solid transparent;
+  transition:all 0.2s;
+}
+nav button:hover,nav button.active{color:#f5f0e8;border-bottom-color:var(--accent)}
+
+/* HERO */
+.hero{
+  background:var(--ink);
+  padding:56px 32px 48px;
+  text-align:center;
+  position:relative;
+  overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(255,255,255,0.04) 39px,rgba(255,255,255,0.04) 40px),
+             repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(255,255,255,0.04) 39px,rgba(255,255,255,0.04) 40px);
+}
+.hero h1{
+  font-family:'Playfair Display',serif;
+  font-size:clamp(2rem,5vw,3.5rem);
+  font-weight:900;color:#f5f0e8;
+  position:relative;letter-spacing:-1px;line-height:1.1;
+}
+.hero h1 span{color:var(--accent)}
+.hero p{
+  margin-top:12px;
+  color:#9a8e82;
+  font-size:0.95rem;
+  position:relative;
+  max-width:520px;margin-inline:auto;
+}
+
+/* SECTIONS */
+section{
+  max-width:960px;margin:0 auto;
+  padding:48px 24px;
+  border-bottom:1px solid var(--border);
+}
+section:last-child{border:none}
+
+.section-eyebrow{
+  font-size:0.68rem;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;
+  color:var(--accent);margin-bottom:6px;
+}
+.section-title{
+  font-family:'Playfair Display',serif;
+  font-size:clamp(1.6rem,3vw,2.2rem);
+  font-weight:700;margin-bottom:8px;
+  line-height:1.2;
+}
+.section-desc{
+  color:var(--muted);font-size:0.9rem;
+  line-height:1.7;max-width:620px;
+  margin-bottom:32px;
+}
+
+/* DIAGRAMS */
+.diagram{
+  background:var(--paper);
+  border:1.5px solid var(--border);
+  border-radius:16px;
+  padding:28px 20px;
+  margin-bottom:20px;
+  position:relative;
+  overflow:hidden;
+}
+.diagram-title{
+  font-size:0.7rem;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;
+  color:var(--muted);margin-bottom:20px;
+  display:flex;align-items:center;gap:8px;
+}
+.diagram-title::after{
+  content:'';flex:1;height:1px;background:var(--border);
+}
+
+/* DEVICES */
+.device{
+  display:inline-flex;flex-direction:column;
+  align-items:center;gap:4px;
+  font-size:0.68rem;font-weight:600;
+  letter-spacing:0.5px;
+  text-transform:uppercase;
+}
+.device-box{
+  width:52px;height:52px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.5rem;
+  border:2px solid;
+  position:relative;
+}
+.device-box.hub{background:rgba(232,160,32,0.12);border-color:var(--hub)}
+.device-box.sw{background:rgba(26,107,60,0.12);border-color:var(--switch)}
+.device-box.bridge{background:rgba(123,63,160,0.12);border-color:var(--bridge)}
+.device-box.router{background:rgba(193,68,14,0.12);border-color:var(--router)}
+.device.hub .device-box + span{color:var(--hub)}
+.device.sw .device-box + span{color:var(--switch)}
+.device.bridge .device-box + span{color:var(--bridge)}
+.device.router .device-box + span{color:var(--router)}
+
+/* PC nodes */
+.pc{
+  display:inline-flex;flex-direction:column;
+  align-items:center;gap:2px;
+  font-size:0.6rem;color:var(--muted);
+}
+.pc-icon{
+  width:36px;height:36px;background:#f0ece4;
+  border:1.5px solid var(--border);
+  border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;
+}
+
+/* wires */
+.wire-h{width:32px;height:2px;background:var(--border);display:inline-block;vertical-align:middle}
+.wire-v{width:2px;background:var(--border);display:inline-block}
+
+/* broadcast envelope */
+.bcast-wave{
+  position:absolute;
+  border-radius:50%;
+  border:2px dashed rgba(224,80,32,0.35);
+  pointer-events:none;
+  animation:ripple 2.5s ease-out infinite;
+}
+@keyframes ripple{
+  0%{transform:scale(0.8);opacity:0.9}
+  100%{transform:scale(1.5);opacity:0}
+}
+
+/* ROW / FLEX helpers */
+.row{display:flex;align-items:center;gap:0;flex-wrap:wrap}
+.col{display:flex;flex-direction:column;align-items:center;gap:0}
+.center{justify-content:center}
+.gap8{gap:8px} .gap12{gap:12px} .gap16{gap:16px} .gap24{gap:24px}
+
+/* BROADCAST DOMAIN BUBBLE */
+.bd-bubble{
+  position:relative;
+  border-radius:16px;
+  padding:16px;
+  border:2px dashed;
+}
+.bd-bubble.orange{
+  border-color:rgba(224,80,32,0.5);
+  background:rgba(224,80,32,0.05);
+}
+.bd-bubble.blue{
+  border-color:rgba(26,61,107,0.5);
+  background:rgba(26,61,107,0.05);
+}
+.bd-bubble.green{
+  border-color:rgba(26,107,60,0.5);
+  background:rgba(26,107,60,0.05);
+}
+.bd-bubble.purple{
+  border-color:rgba(123,63,160,0.5);
+  background:rgba(123,63,160,0.05);
+}
+.bd-label{
+  position:absolute;top:-10px;left:12px;
+  font-size:0.6rem;font-weight:700;
+  letter-spacing:1.5px;text-transform:uppercase;
+  padding:2px 8px;border-radius:20px;
+  background:var(--paper);
+}
+.bd-label.orange{color:var(--broadcast)}
+.bd-label.blue{color:var(--vlan)}
+.bd-label.green{color:var(--switch)}
+.bd-label.purple{color:var(--bridge)}
+
+/* CALLOUT BOXES */
+.callout{
+  border-left:3px solid;
+  padding:12px 16px;
+  border-radius:0 10px 10px 0;
+  margin-top:16px;
+  font-size:0.82rem;line-height:1.6;
+}
+.callout.orange{border-color:var(--broadcast);background:rgba(224,80,32,0.06)}
+.callout.green{border-color:var(--switch);background:rgba(26,107,60,0.06)}
+.callout.blue{border-color:var(--vlan);background:rgba(26,61,107,0.06)}
+.callout.purple{border-color:var(--bridge);background:rgba(123,63,160,0.06)}
+.callout strong{display:block;margin-bottom:4px;font-size:0.78rem;letter-spacing:0.5px}
+
+/* GRID CARDS */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:8px}
+.card{
+  background:var(--paper);
+  border:1.5px solid var(--border);
+  border-radius:14px;
+  padding:18px 16px;
+}
+.card-icon{font-size:1.8rem;margin-bottom:8px}
+.card h4{font-size:0.82rem;font-weight:700;margin-bottom:4px}
+.card p{font-size:0.75rem;color:var(--muted);line-height:1.5}
+.card.hub-c{border-top:3px solid var(--hub)}
+.card.sw-c{border-top:3px solid var(--switch)}
+.card.bridge-c{border-top:3px solid var(--bridge)}
+.card.router-c{border-top:3px solid var(--router)}
+.card.vlan-c{border-top:3px solid var(--vlan)}
+.card.vxlan-c{border-top:3px solid var(--vxlan)}
+
+/* LAYER STACK */
+.layer-stack{display:flex;flex-direction:column;gap:6px}
+.layer-row{
+  display:flex;align-items:center;gap:12px;
+  background:var(--paper);border:1.5px solid var(--border);
+  border-radius:10px;padding:10px 16px;
+}
+.layer-num{
+  width:28px;height:28px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:0.72rem;font-weight:700;flex-shrink:0;
+}
+.layer-row.l1 .layer-num{background:rgba(232,160,32,0.2);color:var(--hub)}
+.layer-row.l2 .layer-num{background:rgba(26,107,60,0.2);color:var(--switch)}
+.layer-row.l3 .layer-num{background:rgba(193,68,14,0.2);color:var(--router)}
+.layer-info{flex:1}
+.layer-info strong{font-size:0.8rem;font-weight:700}
+.layer-info span{font-size:0.72rem;color:var(--muted);display:block}
+.layer-devices{font-size:0.7rem;color:var(--muted);flex-shrink:0;text-align:right}
+
+/* ANALOGY STRIP */
+.analogy-strip{
+  display:flex;align-items:center;
+  gap:12px;
+  background:var(--paper);
+  border:1.5px solid var(--border);
+  border-radius:12px;
+  padding:14px 18px;
+  margin-bottom:12px;
+}
+.analogy-strip .emo{font-size:1.6rem;flex-shrink:0}
+.analogy-strip .ana-text{font-size:0.8rem;line-height:1.5}
+.analogy-strip .ana-text strong{color:var(--accent);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:2px}
+
+/* RELATIONSHIP MAP */
+.rel-map{
+  background:var(--paper);border:1.5px solid var(--border);border-radius:16px;padding:28px 20px;
+  display:flex;flex-direction:column;gap:12px;
+}
+.rel-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rel-tag{
+  padding:5px 12px;border-radius:20px;
+  font-size:0.72rem;font-weight:700;
+  white-space:nowrap;
+}
+.rt-hub{background:rgba(232,160,32,0.15);color:var(--hub);border:1px solid var(--hub)}
+.rt-sw{background:rgba(26,107,60,0.15);color:var(--switch);border:1px solid var(--switch)}
+.rt-bridge{background:rgba(123,63,160,0.15);color:var(--bridge);border:1px solid var(--bridge)}
+.rt-router{background:rgba(193,68,14,0.15);color:var(--router);border:1px solid var(--router)}
+.rt-vlan{background:rgba(26,61,107,0.15);color:var(--vlan);border:1px solid var(--vlan)}
+.rt-vxlan{background:rgba(122,26,107,0.15);color:var(--vxlan);border:1px solid var(--vxlan)}
+.rt-bd{background:rgba(224,80,32,0.15);color:var(--broadcast);border:1px solid var(--broadcast)}
+.rel-arrow{font-size:1rem;color:var(--muted)}
+.rel-desc{font-size:0.75rem;color:var(--muted);line-height:1.5}
+
+/* SCROLL ANIMATIONS */
+.fade-up{opacity:0;transform:translateY(24px);transition:opacity 0.5s ease,transform 0.5s ease}
+.fade-up.visible{opacity:1;transform:none}
+
+/* SVG connectors */
+svg.connector{overflow:visible;display:block}
+
+/* packet label */
+.pkt{
+  display:inline-block;
+  background:rgba(224,80,32,0.1);
+  border:1px solid var(--broadcast);
+  border-radius:4px;padding:1px 6px;
+  font-size:0.65rem;color:var(--broadcast);font-weight:700;
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Networks from<br><span>Physical Wires</span> to the Cloud</h1>
+  <p>How hubs, bridges, switches, routers, VLANs and VXLAN all connect — and what that means for broadcast domains</p>
+</div>
+
+<nav id="nav">
+  <button class="active" onclick="scrollTo('s1')">L1 Segments</button>
+  <button onclick="scrollTo('s2')">L2 Segments</button>
+  <button onclick="scrollTo('s3')">Devices</button>
+  <button onclick="scrollTo('s4')">Broadcast Domain</button>
+  <button onclick="scrollTo('s5')">VLAN</button>
+  <button onclick="scrollTo('s6')">VXLAN</button>
+  <button onclick="scrollTo('s7')">Big Picture</button>
+</nav>
+
+<!-- ═══════════════════════════════════════════
+     SECTION 1 — L1 Segments bridged
+════════════════════════════════════════════ -->
+<section id="s1" class="fade-up">
+  <div class="section-eyebrow">Layer 1 — Physical</div>
+  <div class="section-title">Multiple L1 Segments →<br>One Broadcast Domain</div>
+  <div class="section-desc">
+    A <strong>physical segment</strong> is just a chunk of wire (or Wi-Fi). On its own, a segment is an island. When you use a <strong>hub</strong> or a <strong>repeater</strong> to link islands together, all those segments merge into one big broadcast domain — because a hub simply shouts everything to everyone, with no filtering.
+  </div>
+
+  <div class="analogy-strip">
+    <div class="emo">📢</div>
+    <div class="ana-text"><strong>Analogy</strong>One hub = one megaphone handed to everyone on the floor. Every PC hears every message, no matter which wire it's plugged into.</div>
+  </div>
+
+  <!-- Diagram: 3 segments joined by hubs -->
+  <div class="diagram">
+    <div class="diagram-title">Three physical segments bridged by hubs</div>
+    <!-- Big broadcast domain bubble -->
+    <div class="bd-bubble orange" style="padding:28px 16px 16px">
+      <span class="bd-label orange">📡 One Broadcast Domain</span>
+      <div style="display:flex;flex-direction:column;gap:20px">
+
+        <!-- Segment A -->
+        <div style="display:flex;align-items:center;gap:0;justify-content:center;flex-wrap:wrap;gap:6px">
+          <div style="background:#fff8ee;border:1.5px solid var(--hub);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+            <div class="pc"><div class="pc-icon">🖥️</div><span>PC-A1</span></div>
+            <div class="wire-h" style="width:16px"></div>
+            <div class="pc"><div class="pc-icon">🖥️</div><span>PC-A2</span></div>
+            <div class="wire-h" style="width:16px"></div>
+            <div class="pc"><div class="pc-icon">🖥️</div><span>PC-A3</span></div>
+          </div>
+          <div style="font-size:0.62rem;color:var(--hub);font-weight:700;text-align:center;padding:0 4px">Seg A</div>
+        </div>
+
+        <!-- Hub row -->
+        <div style="display:flex;justify-content:center;align-items:center;gap:8px">
+          <div style="height:2px;width:60px;background:var(--hub);opacity:0.4"></div>
+          <div class="device hub">
+            <div class="device-box hub">🔊</div>
+            <span>Hub</span>
+          </div>
+          <div style="height:2px;width:8px;background:var(--hub);opacity:0.4"></div>
+          <div class="device hub">
+            <div class="device-box hub">🔊</div>
+            <span>Hub</span>
+          </div>
+          <div style="height:2px;width:60px;background:var(--hub);opacity:0.4"></div>
+        </div>
+
+        <!-- Segments B & C -->
+        <div style="display:flex;justify-content:space-around;flex-wrap:wrap;gap:12px">
+          <div style="background:#fff8ee;border:1.5px solid var(--hub);border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;align-items:center;gap:8px">
+            <div style="font-size:0.62rem;color:var(--hub);font-weight:700">Seg B</div>
+            <div style="display:flex;gap:10px">
+              <div class="pc"><div class="pc-icon">🖥️</div><span>PC-B1</span></div>
+              <div class="pc"><div class="pc-icon">🖥️</div><span>PC-B2</span></div>
+            </div>
+          </div>
+          <div style="background:#fff8ee;border:1.5px solid var(--hub);border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;align-items:center;gap:8px">
+            <div style="font-size:0.62rem;color:var(--hub);font-weight:700">Seg C</div>
+            <div style="display:flex;gap:10px">
+              <div class="pc"><div class="pc-icon">🖥️</div><span>PC-C1</span></div>
+              <div class="pc"><div class="pc-icon">🖥️</div><span>PC-C2</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout orange" style="margin-top:16px">
+      <strong>🔑 Key insight</strong>
+      Hubs operate at <strong>Layer 1</strong> — they have zero intelligence. They just amplify and repeat electrical signals to every port. Because of that, all three segments behave as one. <span class="pkt">BROADCAST</span> sent by PC-A1 reaches every single device.
+    </div>
+  </div>
+
+  <div class="layer-stack">
+    <div class="layer-row l1">
+      <div class="layer-num">L1</div>
+      <div class="layer-info"><strong>Physical Layer</strong><span>Raw bits, electrical signals, cables, repeaters</span></div>
+      <div class="layer-devices">Hub · Repeater · Cable</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SECTION 2 — L2 Segments bridged
+════════════════════════════════════════════ -->
+<section id="s2" class="fade-up">
+  <div class="section-eyebrow">Layer 2 — Data Link</div>
+  <div class="section-title">Multiple L2 Segments →<br>Bigger Broadcast Domain</div>
+  <div class="section-desc">
+    At Layer 2, devices know about <strong>MAC addresses</strong>. A <strong>bridge</strong> connects two L2 segments — it's smarter than a hub (it learns MAC addresses) but it still lets broadcasts pass through. So bridging two L2 segments creates one larger broadcast domain.
+  </div>
+
+  <div class="analogy-strip">
+    <div class="emo">🌉</div>
+    <div class="ana-text"><strong>Analogy</strong>Two neighbourhoods connected by an open bridge. A normal message only goes to the right house. But a town-wide announcement (broadcast) crosses the bridge and reaches BOTH neighbourhoods.</div>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">Two L2 segments bridged — one bigger broadcast domain</div>
+    <div class="bd-bubble orange" style="padding:28px 12px 16px">
+      <span class="bd-label orange">📡 One (bigger) Broadcast Domain</span>
+      <div style="display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:12px">
+
+        <!-- L2 Seg 1 -->
+        <div class="bd-bubble green" style="padding:20px 14px 14px;flex:1;min-width:180px">
+          <span class="bd-label green">L2 Segment 1 (Switch)</span>
+          <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+            <div class="pc"><div class="pc-icon">🖥️</div><span>PC-1</span></div>
+            <div class="pc"><div class="pc-icon">🖥️</div><span>PC-2</span></div>
+            <div class="pc"><div class="pc-icon">🖥️</div><span>PC-3</span></div>
+          </div>
+          <div style="display:flex;justify-content:center">
+            <div class="device sw"><div class="device-box sw">🔀</div><span>Switch</span></div>
+          </div>
+        </div>
+
+        <!-- Bridge -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <div style="font-size:0.6rem;color:var(--broadcast);font-weight:700;letter-spacing:1px">BROADCAST →</div>
+          <div style="width:2px;height:20px;background:var(--broadcast);opacity:0.5"></div>
+          <div class="device bridge"><div class="device-box bridge">🌉</div><span>Bridge</span></div>
+          <div style="width:2px;height:20px;background:var(--broadcast);opacity:0.5"></div>
+          <div style="font-size:0.6rem;color:var(--broadcast);font-weight:700;letter-spacing:1px">→ PASSES</div>
+        </div>
+
+        <!-- L2 Seg 2 -->
+        <div class="bd-bubble blue" style="padding:20px 14px 14px;flex:1;min-width:180px">
+          <span class="bd-label blue">L2 Segment 2 (Switch)</span>
+          <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+            <div class="pc"><div class="pc-icon">🖥️</div><span>PC-4</span></div>
+            <div class="pc"><div class="pc-icon">🖥️</div><span>PC-5</span></div>
+            <div class="pc"><div class="pc-icon">🖥️</div><span>PC-6</span></div>
+          </div>
+          <div style="display:flex;justify-content:center">
+            <div class="device sw"><div class="device-box sw">🔀</div><span>Switch</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- vs ROUTER which blocks -->
+    <div style="margin-top:20px;display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:4px">What if we used a ROUTER instead?</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap">
+        <div class="bd-bubble green" style="padding:14px;flex:1;min-width:140px;text-align:center">
+          <span class="bd-label green">Broadcast Domain 1</span>
+          <div style="font-size:1.5rem">🖥️🖥️🖥️</div>
+          <div style="font-size:0.65rem;color:var(--muted);margin-top:4px">Switch + PCs</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <div style="font-size:0.6rem;color:var(--router);font-weight:700">BROADCAST →</div>
+          <div class="device router"><div class="device-box router">🚧</div><span>Router</span></div>
+          <div style="font-size:0.6rem;color:var(--router);font-weight:700">✗ BLOCKED</div>
+        </div>
+        <div class="bd-bubble orange" style="padding:14px;flex:1;min-width:140px;text-align:center">
+          <span class="bd-label orange">Broadcast Domain 2</span>
+          <div style="font-size:1.5rem">🖥️🖥️🖥️</div>
+          <div style="font-size:0.65rem;color:var(--muted);margin-top:4px">Switch + PCs</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout green" style="margin-top:16px">
+      <strong>🔑 Key insight</strong>
+      A <strong>bridge passes broadcasts</strong> (merging domains). A <strong>router blocks broadcasts</strong> (separating domains). This is the fundamental line between L2 and L3.
+    </div>
+  </div>
+
+  <div class="layer-stack">
+    <div class="layer-row l1">
+      <div class="layer-num">L1</div>
+      <div class="layer-info"><strong>Physical Layer</strong><span>Bits on wire</span></div>
+      <div class="layer-devices">Hub · Cable</div>
+    </div>
+    <div class="layer-row l2">
+      <div class="layer-num">L2</div>
+      <div class="layer-info"><strong>Data Link Layer</strong><span>MAC addresses, frames, local delivery</span></div>
+      <div class="layer-devices">Switch · Bridge</div>
+    </div>
+    <div class="layer-row l3">
+      <div class="layer-num">L3</div>
+      <div class="layer-info"><strong>Network Layer</strong><span>IP addresses, routing, cross-network delivery</span></div>
+      <div class="layer-devices">Router</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SECTION 3 — Devices compared
+════════════════════════════════════════════ -->
+<section id="s3" class="fade-up">
+  <div class="section-eyebrow">Devices</div>
+  <div class="section-title">Every Device, Placed in Context</div>
+  <div class="section-desc">Each device operates at a specific layer and has a different effect on broadcast domains.</div>
+
+  <div class="cards">
+    <div class="card hub-c">
+      <div class="card-icon">🔊</div>
+      <h4>Hub (L1)</h4>
+      <p>No brain. Repeats every bit to every port. All ports = same collision domain AND same broadcast domain. Like a megaphone.</p>
+    </div>
+    <div class="card bridge-c">
+      <div class="card-icon">🌉</div>
+      <h4>Bridge (L2)</h4>
+      <p>Learns MAC addresses. Splits collision domains but <em>passes</em> broadcasts — so it merges broadcast domains. The ancestor of the switch.</p>
+    </div>
+    <div class="card sw-c">
+      <div class="card-icon">🔀</div>
+      <h4>Switch (L2)</h4>
+      <p>A multi-port bridge. Each port = own collision domain. Smart delivery via MAC table. Still passes broadcasts by default → one broadcast domain per switch (unless VLANed).</p>
+    </div>
+    <div class="card router-c">
+      <div class="card-icon">🚧</div>
+      <h4>Router (L3)</h4>
+      <p>Works with IP addresses. <strong>Blocks all broadcasts</strong> — each router interface is a separate broadcast domain. The wall between networks.</p>
+    </div>
+    <div class="card vlan-c">
+      <div class="card-icon">🏷️</div>
+      <h4>VLAN (L2 software)</h4>
+      <p>Splits one physical switch into multiple virtual switches, each with its own broadcast domain. No extra hardware needed.</p>
+    </div>
+    <div class="card vxlan-c">
+      <div class="card-icon">🌐</div>
+      <h4>VXLAN (L2 over L3)</h4>
+      <p>Tunnels an entire virtual L2 network over L3/internet. Creates a broadcast domain that spans multiple physical sites or data centres.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SECTION 4 — Broadcast Domain deep
+════════════════════════════════════════════ -->
+<section id="s4" class="fade-up">
+  <div class="section-eyebrow">Core Concept</div>
+  <div class="section-title">The Broadcast Domain — Who Hears the Shout?</div>
+  <div class="section-desc">
+    When a device sends a broadcast (e.g. an ARP "Who has IP x.x.x.x?"), the broadcast domain defines how far that shout travels. Every device in the domain must wake up and process it — even if the message isn't for them.
+  </div>
+
+  <div class="analogy-strip">
+    <div class="emo">🏘️</div>
+    <div class="ana-text"><strong>Town-Crier analogy</strong>Imagine a town crier shouting an announcement. Everyone inside the town walls hears it. The WALLS of the town = broadcast domain boundary. Routers are the walls. Hubs/switches are buildings inside the walls.</div>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">What creates or breaks a broadcast domain</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+      <!-- Expands -->
+      <div style="background:#f9f4ef;border-radius:12px;padding:16px;border:1px solid var(--border)">
+        <div style="font-size:0.7rem;font-weight:700;color:var(--hub);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">📢 Expands domain</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;font-size:0.78rem">
+            <span style="font-size:1.1rem">🔊</span><span><strong>Hub</strong> — floods all ports</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:0.78rem">
+            <span style="font-size:1.1rem">🌉</span><span><strong>Bridge</strong> — forwards broadcasts</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:0.78rem">
+            <span style="font-size:1.1rem">🔀</span><span><strong>Switch</strong> — all ports same VLAN</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:0.78rem">
+            <span style="font-size:1.1rem">🌐</span><span><strong>VXLAN</strong> — virtual L2 across sites</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Breaks -->
+      <div style="background:#f9f4ef;border-radius:12px;padding:16px;border:1px solid var(--border)">
+        <div style="font-size:0.7rem;font-weight:700;color:var(--router);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">🚧 Breaks / shrinks domain</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;font-size:0.78rem">
+            <span style="font-size:1.1rem">🚧</span><span><strong>Router</strong> — drops all broadcasts</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:0.78rem">
+            <span style="font-size:1.1rem">🏷️</span><span><strong>VLAN</strong> — logical split on switch</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:0.78rem">
+            <span style="font-size:1.1rem">🌍</span><span><strong>L3 switch</strong> — inter-VLAN routing</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:0.78rem">
+            <span style="font-size:1.1rem">🔌</span><span><strong>Physical separation</strong> — no link</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SECTION 5 — VLAN
+════════════════════════════════════════════ -->
+<section id="s5" class="fade-up">
+  <div class="section-eyebrow">Virtual LAN</div>
+  <div class="section-title">VLAN — Slicing One Switch into Many</div>
+  <div class="section-desc">
+    Without VLANs, one switch = one broadcast domain. With VLANs, you tag each port with a VLAN ID, and the switch treats each VLAN as if it were a completely separate physical switch with its own broadcast domain.
+  </div>
+
+  <div class="analogy-strip">
+    <div class="emo">🏢</div>
+    <div class="ana-text"><strong>Office floor analogy</strong>One big open floor (switch). Management installs invisible soundproof dividers (VLANs). Now HR, Engineering, and Finance each have their own "room." A shout in HR's room doesn't reach Engineering — same floor, different broadcast domains.</div>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">One physical switch → three broadcast domains via VLANs</div>
+    <div style="display:flex;flex-direction:column;gap:10px;align-items:center">
+
+      <!-- The switch -->
+      <div style="background:#f0faf4;border:2px solid var(--switch);border-radius:14px;padding:14px 20px;width:100%;max-width:520px">
+        <div style="text-align:center;font-size:0.7rem;font-weight:700;color:var(--switch);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px">🔀 One Physical Switch</div>
+        <div style="display:flex;justify-content:space-around;gap:8px">
+          <div style="background:rgba(26,61,107,0.1);border:1.5px dashed var(--vlan);border-radius:10px;padding:10px;text-align:center;flex:1">
+            <div style="font-size:0.62rem;font-weight:700;color:var(--vlan);margin-bottom:6px">VLAN 10 — HR</div>
+            <div style="display:flex;justify-content:center;gap:6px">
+              <div class="pc"><div class="pc-icon">👩‍💼</div><span>PC1</span></div>
+              <div class="pc"><div class="pc-icon">👩‍💼</div><span>PC2</span></div>
+            </div>
+          </div>
+          <div style="background:rgba(232,160,32,0.1);border:1.5px dashed var(--hub);border-radius:10px;padding:10px;text-align:center;flex:1">
+            <div style="font-size:0.62rem;font-weight:700;color:var(--hub);margin-bottom:6px">VLAN 20 — Eng</div>
+            <div style="display:flex;justify-content:center;gap:6px">
+              <div class="pc"><div class="pc-icon">💻</div><span>PC3</span></div>
+              <div class="pc"><div class="pc-icon">💻</div><span>PC4</span></div>
+            </div>
+          </div>
+          <div style="background:rgba(26,107,60,0.1);border:1.5px dashed var(--switch);border-radius:10px;padding:10px;text-align:center;flex:1">
+            <div style="font-size:0.62rem;font-weight:700;color:var(--switch);margin-bottom:6px">VLAN 30 — Finance</div>
+            <div style="display:flex;justify-content:center;gap:6px">
+              <div class="pc"><div class="pc-icon">💰</div><span>PC5</span></div>
+              <div class="pc"><div class="pc-icon">💰</div><span>PC6</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow to router for inter-VLAN -->
+      <div style="font-size:0.7rem;color:var(--muted);text-align:center;margin:4px 0">
+        ↕ To talk between VLANs, traffic must go through a <strong>Router</strong> (or L3 switch)
+      </div>
+      <div class="device router"><div class="device-box router">🚧</div><span>Router / L3 Switch</span></div>
+    </div>
+
+    <div class="callout blue">
+      <strong>🔑 Key insight</strong>
+      VLAN 10 can broadcast all it wants — that broadcast <strong>never reaches</strong> VLAN 20 or VLAN 30. Three separate broadcast domains, zero extra hardware. Max ~4,094 VLANs. <strong>Scope: one building (one L2 domain).</strong>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SECTION 6 — VXLAN
+════════════════════════════════════════════ -->
+<section id="s6" class="fade-up">
+  <div class="section-eyebrow">Virtual Extensible LAN</div>
+  <div class="section-title">VXLAN — Stretching L2 Across the Internet</div>
+  <div class="section-desc">
+    VLAN is limited to one physical site (~4,094 segments). Cloud data centres need millions of isolated networks across many physical locations. <strong>VXLAN</strong> solves this by encapsulating entire L2 frames inside UDP packets — tunnelling the local network through the internet.
+  </div>
+
+  <div class="analogy-strip">
+    <div class="emo">📦</div>
+    <div class="ana-text"><strong>Courier analogy</strong>Imagine your local internal mail (L2 frame) being stuffed into a courier envelope (UDP packet) and shipped across cities. When it arrives, it's unwrapped and behaves exactly like local mail again. The cities can be anywhere — the sender/receiver think they're next door.</div>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">VXLAN: Virtual L2 broadcast domain spanning 3 physical sites</div>
+
+    <!-- 3 sites connected via cloud -->
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:center">
+      <!-- Cloud -->
+      <div style="background:#f0f4fa;border:1.5px dashed #aab;border-radius:20px;padding:10px 30px;font-size:0.75rem;color:var(--muted);font-weight:600">
+        ☁️ IP Network / Internet (L3)
+      </div>
+      <!-- Dotted lines down -->
+      <div style="display:flex;justify-content:space-around;width:100%;max-width:500px">
+        <div style="width:1px;height:24px;background:repeating-linear-gradient(to bottom,#aaa 0,#aaa 4px,transparent 4px,transparent 8px)"></div>
+        <div style="width:1px;height:24px;background:repeating-linear-gradient(to bottom,#aaa 0,#aaa 4px,transparent 4px,transparent 8px)"></div>
+        <div style="width:1px;height:24px;background:repeating-linear-gradient(to bottom,#aaa 0,#aaa 4px,transparent 4px,transparent 8px)"></div>
+      </div>
+
+      <!-- Sites -->
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <div style="background:#f9f4ef;border:1.5px solid var(--border);border-radius:12px;padding:12px;text-align:center;flex:1;min-width:120px">
+          <div style="font-size:1.4rem">🏢</div>
+          <div style="font-size:0.65rem;font-weight:700;margin:4px 0">Site A — Lagos</div>
+          <div style="font-size:0.6rem;color:var(--muted)">VTEP A</div>
+          <div style="display:flex;justify-content:center;gap:6px;margin-top:8px">
+            <div class="pc"><div class="pc-icon" style="font-size:0.9rem">🖥️</div></div>
+            <div class="pc"><div class="pc-icon" style="font-size:0.9rem">🖥️</div></div>
+          </div>
+        </div>
+        <div style="background:#f9f4ef;border:1.5px solid var(--border);border-radius:12px;padding:12px;text-align:center;flex:1;min-width:120px">
+          <div style="font-size:1.4rem">🏬</div>
+          <div style="font-size:0.65rem;font-weight:700;margin:4px 0">Site B — Abuja</div>
+          <div style="font-size:0.6rem;color:var(--muted)">VTEP B</div>
+          <div style="display:flex;justify-content:center;gap:6px;margin-top:8px">
+            <div class="pc"><div class="pc-icon" style="font-size:0.9rem">🖥️</div></div>
+            <div class="pc"><div class="pc-icon" style="font-size:0.9rem">🖥️</div></div>
+          </div>
+        </div>
+        <div style="background:#f9f4ef;border:1.5px solid var(--border);border-radius:12px;padding:12px;text-align:center;flex:1;min-width:120px">
+          <div style="font-size:1.4rem">🏭</div>
+          <div style="font-size:0.65rem;font-weight:700;margin:4px 0">Site C — Kano</div>
+          <div style="font-size:0.6rem;color:var(--muted)">VTEP C</div>
+          <div style="display:flex;justify-content:center;gap:6px;margin-top:8px">
+            <div class="pc"><div class="pc-icon" style="font-size:0.9rem">🖥️</div></div>
+            <div class="pc"><div class="pc-icon" style="font-size:0.9rem">🖥️</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VXLAN tunnel overlay -->
+      <div style="width:100%;max-width:500px;background:rgba(122,26,107,0.06);border:2px dashed rgba(122,26,107,0.5);border-radius:16px;padding:10px;text-align:center;margin-top:4px">
+        <div style="font-size:0.68rem;font-weight:700;color:var(--vxlan);letter-spacing:1px;text-transform:uppercase">⬡ VXLAN VNI Tunnel — Virtual L2 Broadcast Domain</div>
+        <div style="font-size:0.65rem;color:var(--muted);margin-top:4px">All 6 PCs see each other as if on the same switch · ~16 million VNIs possible</div>
+      </div>
+    </div>
+
+    <!-- Packet encapsulation diagram -->
+    <div style="margin-top:20px">
+      <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:10px">📦 How VXLAN wraps a packet</div>
+      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:center">
+        <div style="background:rgba(232,160,32,0.15);border:1.5px solid var(--hub);border-radius:6px;padding:6px 10px;font-size:0.68rem;font-weight:700;color:var(--hub)">Outer Ethernet</div>
+        <div style="font-size:0.8rem;color:var(--muted)">→</div>
+        <div style="background:rgba(193,68,14,0.15);border:1.5px solid var(--router);border-radius:6px;padding:6px 10px;font-size:0.68rem;font-weight:700;color:var(--router)">Outer IP</div>
+        <div style="font-size:0.8rem;color:var(--muted)">→</div>
+        <div style="background:rgba(193,68,14,0.1);border:1.5px solid var(--router);border-radius:6px;padding:6px 10px;font-size:0.68rem;font-weight:700;color:var(--router)">UDP</div>
+        <div style="font-size:0.8rem;color:var(--muted)">→</div>
+        <div style="background:rgba(122,26,107,0.15);border:1.5px solid var(--vxlan);border-radius:6px;padding:6px 10px;font-size:0.68rem;font-weight:700;color:var(--vxlan)">VXLAN Header (VNI)</div>
+        <div style="font-size:0.8rem;color:var(--muted)">→</div>
+        <div style="background:rgba(26,107,60,0.15);border:1.5px solid var(--switch);border-radius:6px;padding:6px 10px;font-size:0.68rem;font-weight:700;color:var(--switch)">Inner L2 Frame</div>
+      </div>
+      <div style="font-size:0.7rem;color:var(--muted);text-align:center;margin-top:6px">The inner frame carries the original broadcast/unicast — treated as local when unwrapped at the destination VTEP</div>
+    </div>
+
+    <div class="callout purple">
+      <strong>🔑 Key insight</strong>
+      VXLAN is why Kubernetes works across nodes — pods on different physical servers act as if they're on the same L2 network. The VTEP (VXLAN Tunnel Endpoint) on each host does the wrapping/unwrapping automatically.
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SECTION 7 — Big Picture
+════════════════════════════════════════════ -->
+<section id="s7" class="fade-up">
+  <div class="section-eyebrow">The Full Picture</div>
+  <div class="section-title">How It All Connects</div>
+  <div class="section-desc">Every concept in this guide is just a different answer to one question: <em>"Who can hear this message?"</em></div>
+
+  <div class="rel-map">
+    <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--muted);margin-bottom:8px">Concept Relationships</div>
+
+    <div class="rel-row">
+      <span class="rel-tag rt-hub">Hub (L1)</span>
+      <span class="rel-arrow">→</span>
+      <span class="rel-desc">repeats to all ports → <strong>same collision AND broadcast domain</strong></span>
+    </div>
+    <div class="rel-row">
+      <span class="rel-tag rt-bridge">Bridge (L2)</span>
+      <span class="rel-arrow">→</span>
+      <span class="rel-desc">learns MACs, splits collision domains but <strong>merges broadcast domains</strong></span>
+    </div>
+    <div class="rel-row">
+      <span class="rel-tag rt-sw">Switch (L2)</span>
+      <span class="rel-arrow">→</span>
+      <span class="rel-desc">multi-port bridge · all ports = <strong>one broadcast domain</strong> by default</span>
+    </div>
+    <div class="rel-row">
+      <span class="rel-tag rt-vlan">VLAN (L2 virtual)</span>
+      <span class="rel-arrow">→</span>
+      <span class="rel-desc">software slices one switch into N switches · each VLAN = <strong>own broadcast domain</strong></span>
+    </div>
+    <div class="rel-row">
+      <span class="rel-tag rt-router">Router (L3)</span>
+      <span class="rel-arrow">→</span>
+      <span class="rel-desc"><strong>blocks all broadcasts</strong> · each interface = separate broadcast domain · connects VLANs</span>
+    </div>
+    <div class="rel-row">
+      <span class="rel-tag rt-vxlan">VXLAN (L2 over L3)</span>
+      <span class="rel-arrow">→</span>
+      <span class="rel-desc">tunnels virtual L2 over L3 · creates a <strong>broadcast domain spanning multiple sites</strong></span>
+    </div>
+    <div class="rel-row">
+      <span class="rel-tag rt-bd">Broadcast Domain</span>
+      <span class="rel-arrow">→</span>
+      <span class="rel-desc">the result of all the above — determined by where hubs/bridges/switches merge traffic and where routers/VLANs cut it</span>
+    </div>
+  </div>
+
+  <!-- Final scale diagram -->
+  <div class="diagram" style="margin-top:24px">
+    <div class="diagram-title">Scale of broadcast domains — from wire to cloud</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:28px;text-align:center">🔊</div>
+        <div style="flex:1;background:rgba(232,160,32,0.1);border:1px solid var(--hub);border-radius:8px;padding:8px 12px;font-size:0.75rem">
+          <strong>Hub</strong> — one segment, one domain, huge noise, lots of collisions
+        </div>
+        <div style="font-size:0.65rem;color:var(--muted);width:80px;text-align:right">~10–100 m</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:28px;text-align:center">🔀</div>
+        <div style="flex:1;background:rgba(26,107,60,0.1);border:1px solid var(--switch);border-radius:8px;padding:8px 12px;font-size:0.75rem">
+          <strong>Switch</strong> — one building floor, one domain, smart delivery, no collisions
+        </div>
+        <div style="font-size:0.65rem;color:var(--muted);width:80px;text-align:right">one floor</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:28px;text-align:center">🏷️</div>
+        <div style="flex:1;background:rgba(26,61,107,0.1);border:1px solid var(--vlan);border-radius:8px;padding:8px 12px;font-size:0.75rem">
+          <strong>VLAN</strong> — one building, multiple domains, isolated departments
+        </div>
+        <div style="font-size:0.65rem;color:var(--muted);width:80px;text-align:right">one site</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:28px;text-align:center">🚧</div>
+        <div style="flex:1;background:rgba(193,68,14,0.1);border:1px solid var(--router);border-radius:8px;padding:8px 12px;font-size:0.75rem">
+          <strong>Router</strong> — connects buildings, each building = own domain
+        </div>
+        <div style="font-size:0.65rem;color:var(--muted);width:80px;text-align:right">city</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:28px;text-align:center">🌐</div>
+        <div style="flex:1;background:rgba(122,26,107,0.1);border:1px solid var(--vxlan);border-radius:8px;padding:8px 12px;font-size:0.75rem">
+          <strong>VXLAN</strong> — virtual L2 domain stretched across the entire internet
+        </div>
+        <div style="font-size:0.65rem;color:var(--muted);width:80px;text-align:right">🌍 global</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+// Nav scroll
+function scrollTo(id){
+  document.getElementById(id).scrollIntoView({behavior:'smooth',block:'start'})
+}
+
+// Active nav on scroll
+const sections = ['s1','s2','s3','s4','s5','s6','s7']
+const buttons = document.querySelectorAll('nav button')
+window.addEventListener('scroll',()=>{
+  let current = 0
+  sections.forEach((id,i)=>{
+    const el = document.getElementById(id)
+    if(el && el.getBoundingClientRect().top < 120) current = i
+  })
+  buttons.forEach((b,i)=>{b.classList.toggle('active',i===current)})
+})
+
+// Fade in on scroll
+const observer = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible')})
+},{threshold:0.1})
+document.querySelectorAll('.fade-up').forEach(el=>observer.observe(el))
+</script>
+</body>
+</html>
