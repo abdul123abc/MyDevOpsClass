@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kubernetes Services — From First Principles</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080b10;
+    --bg2: #0d1117;
+    --bg3: #111820;
+    --border: #1e2d3d;
+    --accent: #00d9ff;
+    --accent2: #7c3aed;
+    --accent3: #10b981;
+    --accent4: #f59e0b;
+    --accent5: #ef4444;
+    --text: #cdd9e5;
+    --muted: #546e7a;
+    --card: #0d1520;
+    --glow: 0 0 20px rgba(0,217,255,0.15);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+  /* ─── NOISE TEXTURE ─── */
+  body::before {
+    content:'';
+    position:fixed;
+    inset:0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events:none;
+    z-index:0;
+    opacity:0.4;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    position: fixed; top:0; left:0; right:0; z-index:100;
+    background: rgba(8,11,16,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex; align-items: center; gap: 2rem;
+    height: 56px;
+  }
+  .nav-brand { font-family:'JetBrains Mono'; color:var(--accent); font-size:.85rem; font-weight:700; letter-spacing:.05em; }
+  .nav-links { display:flex; gap:1.5rem; margin-left:auto; }
+  .nav-links a { color:var(--muted); text-decoration:none; font-size:.78rem; font-family:'JetBrains Mono'; transition:.2s; }
+  .nav-links a:hover { color:var(--accent); }
+
+  /* ─── HERO ─── */
+  .hero {
+    min-height: 100vh;
+    display: flex; flex-direction:column; justify-content:center; align-items:center;
+    text-align: center;
+    padding: 6rem 2rem 4rem;
+    position: relative;
+  }
+  .hero-grid {
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(rgba(0,217,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,217,255,0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+  }
+  .hero-tag {
+    font-family:'JetBrains Mono'; font-size:.75rem; color:var(--accent);
+    border:1px solid rgba(0,217,255,0.3); border-radius:4px;
+    padding:.3rem .9rem; margin-bottom:2rem;
+    animation: fadeUp .6s ease both;
+  }
+  .hero h1 {
+    font-size: clamp(2.5rem,6vw,5rem); font-weight:800; line-height:1.1;
+    animation: fadeUp .7s .1s ease both;
+  }
+  .hero h1 span { color:var(--accent); }
+  .hero p {
+    max-width:600px; color:var(--muted); font-size:1.05rem; margin:1.5rem auto 0;
+    animation: fadeUp .7s .2s ease both;
+  }
+  .scroll-hint {
+    position:absolute; bottom:2rem;
+    font-family:'JetBrains Mono'; font-size:.7rem; color:var(--muted);
+    display:flex; flex-direction:column; align-items:center; gap:.5rem;
+    animation: fadeUp 1s .8s ease both;
+  }
+  .scroll-hint::after {
+    content:''; width:1px; height:40px;
+    background: linear-gradient(to bottom, var(--accent), transparent);
+    animation: pulse 1.5s infinite;
+  }
+
+  /* ─── SECTIONS ─── */
+  section { padding: 5rem 0; position:relative; }
+  .container { max-width:1100px; margin:0 auto; padding:0 2rem; }
+  .section-label {
+    font-family:'JetBrains Mono'; font-size:.7rem; color:var(--accent);
+    letter-spacing:.15em; text-transform:uppercase; margin-bottom:.75rem;
+    display:flex; align-items:center; gap:.75rem;
+  }
+  .section-label::before { content:'//'; opacity:.5; }
+  h2 { font-size:clamp(1.8rem,3.5vw,2.6rem); font-weight:800; line-height:1.15; margin-bottom:1rem; }
+  h3 { font-size:1.25rem; font-weight:700; margin-bottom:.75rem; }
+  p { color:var(--text); margin-bottom:1rem; }
+
+  /* ─── DIVIDER ─── */
+  .divider {
+    border:none; height:1px;
+    background: linear-gradient(to right, transparent, var(--border), transparent);
+    margin: 0;
+  }
+
+  /* ─── ANALOGY CARD ─── */
+  .analogy {
+    background: linear-gradient(135deg, rgba(0,217,255,0.06), rgba(124,58,237,0.06));
+    border: 1px solid rgba(0,217,255,0.2);
+    border-left: 3px solid var(--accent);
+    border-radius:8px;
+    padding: 1.25rem 1.5rem;
+    margin: 1.5rem 0;
+    position: relative;
+  }
+  .analogy::before {
+    content:'💡 ANALOGY';
+    font-family:'JetBrains Mono'; font-size:.65rem; color:var(--accent);
+    letter-spacing:.1em; display:block; margin-bottom:.5rem;
+  }
+  .analogy p { color:#a8c0cc; margin:0; }
+
+  /* ─── HIGHLIGHT BOX ─── */
+  .highlight-box {
+    background: rgba(16,185,129,0.07);
+    border: 1px solid rgba(16,185,129,0.25);
+    border-radius:8px; padding:1rem 1.5rem; margin:1.5rem 0;
+  }
+  .highlight-box.amber { background:rgba(245,158,11,0.07); border-color:rgba(245,158,11,0.25); }
+  .highlight-box.red { background:rgba(239,68,68,0.07); border-color:rgba(239,68,68,0.25); }
+  .highlight-box.purple { background:rgba(124,58,237,0.07); border-color:rgba(124,58,237,0.25); }
+
+  /* ─── CARDS GRID ─── */
+  .cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap:1rem; margin:2rem 0; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius:10px; padding:1.5rem;
+    transition: border-color .3s, transform .3s, box-shadow .3s;
+    cursor:default;
+  }
+  .card:hover { border-color:var(--accent); transform:translateY(-3px); box-shadow:var(--glow); }
+  .card-icon { font-size:1.8rem; margin-bottom:.75rem; }
+  .card h3 { font-size:1rem; margin-bottom:.5rem; }
+  .card p { font-size:.88rem; color:var(--muted); margin:0; }
+  .card .tag {
+    display:inline-block; font-family:'JetBrains Mono'; font-size:.65rem;
+    padding:.2rem .6rem; border-radius:4px; margin-top:.75rem;
+  }
+  .tag-blue { background:rgba(0,217,255,0.1); color:var(--accent); border:1px solid rgba(0,217,255,0.2); }
+  .tag-green { background:rgba(16,185,129,0.1); color:var(--accent3); border:1px solid rgba(16,185,129,0.2); }
+  .tag-amber { background:rgba(245,158,11,0.1); color:var(--accent4); border:1px solid rgba(245,158,11,0.2); }
+  .tag-red { background:rgba(239,68,68,0.1); color:var(--accent5); border:1px solid rgba(239,68,68,0.2); }
+  .tag-purple { background:rgba(124,58,237,0.1); color:#a78bfa; border:1px solid rgba(124,58,237,0.2); }
+
+  /* ─── TABLE ─── */
+  .table-wrap { overflow-x:auto; margin:1.5rem 0; border-radius:8px; border:1px solid var(--border); }
+  table { width:100%; border-collapse:collapse; font-size:.88rem; }
+  th { background:#0a1520; color:var(--accent); font-family:'JetBrains Mono'; font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; padding:.75rem 1rem; text-align:left; border-bottom:1px solid var(--border); }
+  td { padding:.7rem 1rem; border-bottom:1px solid rgba(30,45,61,0.5); color:var(--text); vertical-align:top; }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background:rgba(0,217,255,0.03); }
+
+  /* ─── CODE ─── */
+  pre {
+    background:#050a0f; border:1px solid var(--border); border-radius:8px;
+    padding:1.25rem; overflow-x:auto; font-family:'JetBrains Mono'; font-size:.8rem;
+    color:#a8c0cc; line-height:1.7; margin:1.5rem 0;
+  }
+  code { font-family:'JetBrains Mono'; font-size:.82em; color:var(--accent); background:rgba(0,217,255,0.08); padding:.1em .4em; border-radius:3px; }
+
+  /* ─── SVG DIAGRAMS ─── */
+  .diagram-wrap {
+    background: #050a0f;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 2rem 0;
+    overflow-x: auto;
+  }
+  .diagram-wrap svg { display:block; margin:0 auto; max-width:100%; }
+
+  /* ─── NESTING DOLLS VISUAL ─── */
+  .nesting {
+    display:flex; align-items:center; justify-content:center;
+    flex-wrap:wrap; gap:0; margin:2rem 0;
+  }
+  .nest-layer {
+    border-radius:10px; padding:1rem 1.5rem 1rem 1rem;
+    border:2px dashed;
+    display:flex; align-items:center; gap:1rem;
+    transition:.3s;
+  }
+  .nest-layer:hover { filter:brightness(1.2); }
+  .nest-1 { border-color:var(--accent5); background:rgba(239,68,68,0.05); }
+  .nest-2 { border-color:var(--accent4); background:rgba(245,158,11,0.05); }
+  .nest-3 { border-color:var(--accent); background:rgba(0,217,255,0.05); }
+  .nest-label { font-family:'JetBrains Mono'; font-size:.8rem; }
+
+  /* ─── TWO COL ─── */
+  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin:1.5rem 0; }
+  @media(max-width:700px) { .two-col { grid-template-columns:1fr; } }
+
+  /* ─── TIMELINE ─── */
+  .timeline { position:relative; padding-left:2rem; }
+  .timeline::before { content:''; position:absolute; left:.5rem; top:0; bottom:0; width:2px; background:linear-gradient(to bottom, var(--accent), var(--accent2)); border-radius:2px; }
+  .tl-item { position:relative; padding:.75rem 0 .75rem 1.5rem; }
+  .tl-item::before { content:''; position:absolute; left:-1.6rem; top:1.1rem; width:10px; height:10px; border-radius:50%; background:var(--accent); border:2px solid var(--bg); box-shadow:0 0 10px var(--accent); }
+
+  /* ─── TABS ─── */
+  .tabs { margin:2rem 0; }
+  .tab-btns { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem; }
+  .tab-btn {
+    font-family:'JetBrains Mono'; font-size:.75rem; padding:.4rem 1rem;
+    background:transparent; border:1px solid var(--border); color:var(--muted);
+    border-radius:4px; cursor:pointer; transition:.2s;
+  }
+  .tab-btn.active { background:rgba(0,217,255,0.1); border-color:var(--accent); color:var(--accent); }
+  .tab-btn:hover:not(.active) { border-color:var(--muted); color:var(--text); }
+  .tab-panel { display:none; animation:fadeIn .3s ease; }
+  .tab-panel.active { display:block; }
+
+  /* ─── FOOTER ─── */
+  footer {
+    border-top:1px solid var(--border);
+    padding:2rem; text-align:center;
+    font-family:'JetBrains Mono'; font-size:.75rem; color:var(--muted);
+  }
+
+  /* ─── ANIMATIONS ─── */
+  @keyframes fadeUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+  @keyframes flow {
+    0% { stroke-dashoffset: 100; }
+    100% { stroke-dashoffset: 0; }
+  }
+  @keyframes blink { 0%,100%{ opacity:1; } 50%{ opacity:0; } }
+  .cursor::after { content:'█'; animation:blink 1s infinite; color:var(--accent); font-size:.8em; }
+
+  /* ─── SCROLL REVEAL ─── */
+  .reveal { opacity:0; transform:translateY(30px); transition: opacity .6s ease, transform .6s ease; }
+  .reveal.visible { opacity:1; transform:translateY(0); }
+
+  /* ─── PACKET ANIMATION ─── */
+  .packet-demo { position:relative; height:80px; margin:1rem 0; }
+  .packet {
+    position:absolute; width:40px; height:24px;
+    background:var(--accent); border-radius:4px;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono'; font-size:.6rem; color:#000; font-weight:700;
+    top:28px; left:0;
+    animation: slidePacket 3s ease-in-out infinite;
+  }
+  @keyframes slidePacket {
+    0% { left:0; opacity:1; }
+    80% { left:calc(100% - 50px); opacity:1; }
+    90% { opacity:0; }
+    100% { left:calc(100% - 50px); opacity:0; }
+  }
+
+  /* ─── INTERACTIVE TRAFFIC FLOW ─── */
+  #traffic-svg .flow-path {
+    stroke-dasharray: 8 4;
+    animation: flowAnim 1.5s linear infinite;
+  }
+  @keyframes flowAnim { to { stroke-dashoffset: -60; } }
+  .node-box { transition:.3s; cursor:pointer; }
+  .node-box:hover rect { filter:brightness(1.4); }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <span class="nav-brand">k8s://services</span>
+  <div class="nav-links">
+    <a href="#why">Why</a>
+    <a href="#networking">Networking</a>
+    <a href="#clusterip">ClusterIP</a>
+    <a href="#nodeport">NodePort</a>
+    <a href="#loadbalancer">LoadBalancer</a>
+    <a href="#externalname">ExternalName</a>
+    <a href="#kube-proxy">kube-proxy</a>
+    <a href="#ingress">Ingress</a>
+    <a href="#cheatsheet">Cheatsheet</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-grid"></div>
+  <div style="position:relative;z-index:1;">
+    <div class="hero-tag">Kubernetes Deep Dive — Abdullah's Edition</div>
+    <h1>Kubernetes <span>Services</span><br>From First Principles</h1>
+    <p>Everything you need to understand — ClusterIP, NodePort, LoadBalancer, ExternalName, kube-proxy, and Ingress — with real analogies, diagrams, and zero hand-waving.</p>
+  </div>
+  <div class="scroll-hint" style="position:relative;margin-top:4rem;">scroll to explore</div>
+</div>
+
+<hr class="divider">
+
+<!-- WHY SECTION -->
+<section id="why">
+<div class="container">
+  <div class="reveal">
+    <div class="section-label">01 — The Problem</div>
+    <h2>Why Do Services Even Exist?</h2>
+    <p>Before we touch any Service type, we need to feel the <em>pain</em> they solve. Because Kubernetes Services are not some arbitrary abstraction — they exist because pods are fundamentally broken for direct communication.</p>
+
+    <div class="analogy">
+      <p>Your cluster is a <strong>large corporate office city</strong>. Pods are <strong>employees</strong>. The problem? Employees move desks constantly — they get fired, rehired, promoted to different buildings. Every time they move, they get a <strong>new phone number</strong>. If you've been calling John directly on his personal phone, and John moves to a new desk tomorrow with a new number, your call fails. <br><br>A <strong>Service</strong> is the company's <strong>main office line</strong> — it stays the same no matter how many times employees come and go behind it.</p>
+    </div>
+
+    <p>Here is the cold technical truth:</p>
+
+    <div class="two-col">
+      <div class="highlight-box red">
+        <h3 style="color:var(--accent5);">❌ Without Services</h3>
+        <ul style="padding-left:1.2rem;color:var(--muted);font-size:.9rem;">
+          <li>Pod gets IP <code>10.0.1.5</code></li>
+          <li>Pod crashes, restarts</li>
+          <li>New pod gets IP <code>10.0.1.9</code></li>
+          <li>All hardcoded callers → broken ☠️</li>
+          <li>10 replicas = 10 IPs to track manually</li>
+        </ul>
+      </div>
+      <div class="highlight-box">
+        <h3 style="color:var(--accent3);">✅ With Services</h3>
+        <ul style="padding-left:1.2rem;color:var(--muted);font-size:.9rem;">
+          <li>Service gets stable IP <code>10.96.0.1</code></li>
+          <li>Pods come and go freely</li>
+          <li>Callers always reach <code>10.96.0.1</code></li>
+          <li>Service routes to any healthy pod</li>
+          <li>10 replicas = 1 IP, auto load-balanced</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<hr class="divider">
+
+<!-- NETWORKING FOUNDATION -->
+<section id="networking">
+<div class="container">
+  <div class="reveal">
+    <div class="section-label">02 — Foundation</div>
+    <h2>The Flat Network You Already Know</h2>
+    <p>You mapped this perfectly in our earlier chat — and it's exactly right:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Kubernetes</th><th>AWS / Networking Equivalent</th><th>Why It Matches</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Cluster</strong></td><td>VPC (Virtual Private Cloud)</td><td>Isolated private network space with its own CIDR block</td></tr>
+          <tr><td><strong>Node</strong></td><td>Subnet</td><td>Each node owns a sub-range of IPs (e.g. 10.0.1.0/24)</td></tr>
+          <tr><td><strong>Pod</strong></td><td>Device / EC2 instance</td><td>Gets its own unique IP from the node's range</td></tr>
+          <tr><td><strong>CNI Plugin</strong></td><td>VPC Route Tables</td><td>Programs routes so pods on different nodes can reach each other</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 760 300" width="760" height="300" font-family="JetBrains Mono" font-size="11">
+        <!-- Cluster boundary -->
+        <rect x="10" y="10" width="740" height="280" rx="14" fill="none" stroke="#1e2d3d" stroke-width="2" stroke-dasharray="6,3"/>
+        <text x="30" y="32" fill="#00d9ff" font-size="10" font-weight="700">CLUSTER — 10.0.0.0/16 (Your VPC)</text>
+
+        <!-- Node 1 -->
+        <rect x="30" y="45" width="210" height="220" rx="10" fill="#0a1520" stroke="#1e2d3d" stroke-width="1.5"/>
+        <text x="50" y="68" fill="#f59e0b" font-size="9.5">NODE 1 — Subnet 10.0.1.0/24</text>
+        <!-- Pods in node 1 -->
+        <rect x="50" y="80" width="80" height="44" rx="7" fill="#0d2030" stroke="#00d9ff" stroke-width="1.2"/>
+        <text x="90" y="99" fill="#00d9ff" font-size="9" text-anchor="middle">Pod A</text>
+        <text x="90" y="113" fill="#546e7a" font-size="8" text-anchor="middle">10.0.1.2</text>
+
+        <rect x="145" y="80" width="80" height="44" rx="7" fill="#0d2030" stroke="#00d9ff" stroke-width="1.2"/>
+        <text x="185" y="99" fill="#00d9ff" font-size="9" text-anchor="middle">Pod B</text>
+        <text x="185" y="113" fill="#546e7a" font-size="8" text-anchor="middle">10.0.1.3</text>
+
+        <!-- bridge -->
+        <rect x="50" y="150" width="175" height="28" rx="5" fill="#0a1f30" stroke="#1e4d6b" stroke-width="1"/>
+        <text x="137" y="169" fill="#546e7a" font-size="9" text-anchor="middle">bridge: cbr0</text>
+        <!-- veth lines -->
+        <line x1="90" y1="124" x2="90" y2="150" stroke="#1e4d6b" stroke-width="1.5"/>
+        <line x1="185" y1="124" x2="185" y2="150" stroke="#1e4d6b" stroke-width="1.5"/>
+        <!-- eth0 -->
+        <rect x="100" y="205" width="80" height="26" rx="5" fill="#07111a" stroke="#1e4d6b" stroke-width="1"/>
+        <text x="140" y="222" fill="#546e7a" font-size="8.5" text-anchor="middle">eth0 (Node IP)</text>
+        <line x1="137" y1="178" x2="137" y2="205" stroke="#1e4d6b" stroke-width="1.5"/>
+
+        <!-- Node 2 -->
+        <rect x="270" y="45" width="210" height="220" rx="10" fill="#0a1520" stroke="#1e2d3d" stroke-width="1.5"/>
+        <text x="290" y="68" fill="#f59e0b" font-size="9.5">NODE 2 — Subnet 10.0.2.0/24</text>
+        <rect x="290" y="80" width="80" height="44" rx="7" fill="#0d2030" stroke="#00d9ff" stroke-width="1.2"/>
+        <text x="330" y="99" fill="#00d9ff" font-size="9" text-anchor="middle">Pod C</text>
+        <text x="330" y="113" fill="#546e7a" font-size="8" text-anchor="middle">10.0.2.5</text>
+
+        <rect x="385" y="80" width="80" height="44" rx="7" fill="#0d2030" stroke="#00d9ff" stroke-width="1.2"/>
+        <text x="425" y="99" fill="#00d9ff" font-size="9" text-anchor="middle">Pod D</text>
+        <text x="425" y="113" fill="#546e7a" font-size="8" text-anchor="middle">10.0.2.6</text>
+
+        <rect x="290" y="150" width="175" height="28" rx="5" fill="#0a1f30" stroke="#1e4d6b" stroke-width="1"/>
+        <text x="377" y="169" fill="#546e7a" font-size="9" text-anchor="middle">bridge: cbr0</text>
+        <line x1="330" y1="124" x2="330" y2="150" stroke="#1e4d6b" stroke-width="1.5"/>
+        <line x1="425" y1="124" x2="425" y2="150" stroke="#1e4d6b" stroke-width="1.5"/>
+        <rect x="337" y="205" width="80" height="26" rx="5" fill="#07111a" stroke="#1e4d6b" stroke-width="1"/>
+        <text x="377" y="222" fill="#546e7a" font-size="8.5" text-anchor="middle">eth0 (Node IP)</text>
+        <line x1="377" y1="178" x2="377" y2="205" stroke="#1e4d6b" stroke-width="1.5"/>
+
+        <!-- CNI -->
+        <rect x="520" y="45" width="210" height="220" rx="10" fill="#0d1020" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4,2"/>
+        <text x="540" y="68" fill="#a78bfa" font-size="9.5">CNI Plugin (Route Table)</text>
+        <text x="560" y="100" fill="#546e7a" font-size="8.5">10.0.1.0/24 → Node1</text>
+        <text x="560" y="120" fill="#546e7a" font-size="8.5">10.0.2.0/24 → Node2</text>
+        <text x="560" y="140" fill="#546e7a" font-size="8.5">10.0.3.0/24 → Node3</text>
+        <text x="560" y="175" fill="#7c3aed" font-size="8">Flannel / Calico</text>
+        <text x="560" y="190" fill="#7c3aed" font-size="8">Programs these routes</text>
+        <text x="560" y="205" fill="#7c3aed" font-size="8">on every node</text>
+
+        <!-- cross-node arrow -->
+        <path d="M 140 231 Q 257 255 370 231" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
+        <text x="235" y="272" fill="#7c3aed" font-size="8.5" text-anchor="middle">cross-node (CNI routes)</text>
+
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c3aed"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+
+    <div class="highlight-box">
+      <p style="margin:0;"><strong style="color:var(--accent3);">The Golden Rule:</strong> Every pod can reach every other pod in the cluster directly by IP address — same node or different node — without NAT, without port mapping. This is the Kubernetes flat network guarantee, enforced by the CNI plugin.</p>
+    </div>
+
+    <p>But here's the catch — pod IPs are <strong>ephemeral</strong>. They change every restart. This is the exact problem Services solve. Let's go through each type.</p>
+  </div>
+</div>
+</section>
+
+<hr class="divider">
+
+<!-- CLUSTERIP -->
+<section id="clusterip">
+<div class="container">
+  <div class="reveal">
+    <div class="section-label">03 — Service Type 1</div>
+    <h2>ClusterIP — <span style="color:var(--accent);">The Internal DIP</span></h2>
+
+    <div class="analogy">
+      <p>You nailed this one: <strong>ClusterIP is the DIP (Destination IP)</strong> in a load balancer setup. It's a stable virtual IP that lives <em>only inside the cluster</em>, backed by iptables/IPVS rules that distribute traffic across all healthy pods behind it. Just like a DIP in an F5 setup — the VIP in front sends to the DIP, the DIP distributes to real servers (pods).</p>
+    </div>
+
+    <p>ClusterIP is the <strong>default</strong> Service type. When you create any Service without specifying a type, you get a ClusterIP. It's the foundation everything else builds on.</p>
+
+    <div class="diagram-wrap" id="traffic-svg">
+      <svg viewBox="0 0 760 220" width="760" height="220" font-family="JetBrains Mono" font-size="11">
+
+        <!-- Pod A caller -->
+        <g class="node-box">
+          <rect x="20" y="85" width="100" height="50" rx="8" fill="#0d2030" stroke="#00d9ff" stroke-width="1.5"/>
+          <text x="70" y="107" fill="#00d9ff" font-size="10" text-anchor="middle">Pod A</text>
+          <text x="70" y="121" fill="#546e7a" font-size="8.5" text-anchor="middle">caller</text>
+        </g>
+
+        <!-- Arrow to ClusterIP -->
+        <line x1="120" y1="110" x2="190" y2="110" stroke="#00d9ff" stroke-width="1.5" class="flow-path" marker-end="url(#a1)"/>
+        <text x="155" y="103" fill="#546e7a" font-size="8" text-anchor="middle">10.96.0.1:80</text>
+
+        <!-- ClusterIP box -->
+        <g class="node-box">
+          <rect x="190" y="75" width="130" height="70" rx="8" fill="#0a1520" stroke="#f59e0b" stroke-width="2"/>
+          <text x="255" y="103" fill="#f59e0b" font-size="10" text-anchor="middle" font-weight="700">ClusterIP</text>
+          <text x="255" y="118" fill="#546e7a" font-size="8.5" text-anchor="middle">10.96.0.1</text>
+          <text x="255" y="133" fill="#546e7a" font-size="7.5" text-anchor="middle">virtual IP (DIP)</text>
+        </g>
+
+        <!-- iptables intercept note -->
+        <rect x="195" y="155" width="125" height="28" rx="5" fill="#0a1020" stroke="#7c3aed" stroke-width="1" stroke-dasharray="3,2"/>
+        <text x="257" y="169" fill="#7c3aed" font-size="8" text-anchor="middle">kube-proxy wrote</text>
+        <text x="257" y="181" fill="#7c3aed" font-size="8" text-anchor="middle">iptables rules here</text>
+        <line x1="255" y1="145" x2="255" y2="155" stroke="#7c3aed" stroke-width="1" stroke-dasharray="3,2"/>
+
+        <!-- Arrows to pods -->
+        <line x1="320" y1="100" x2="400" y2="75" stroke="#10b981" stroke-width="1.5" class="flow-path" marker-end="url(#a2)"/>
+        <line x1="320" y1="110" x2="400" y2="110" stroke="#10b981" stroke-width="1.5" class="flow-path" marker-end="url(#a2)"/>
+        <line x1="320" y1="120" x2="400" y2="148" stroke="#10b981" stroke-width="1.5" class="flow-path" marker-end="url(#a2)"/>
+        <text x="360" y="94" fill="#10b981" font-size="8">load</text>
+        <text x="360" y="104" fill="#10b981" font-size="8">balance</text>
+
+        <!-- Backend Pods -->
+        <rect x="400" y="48" width="90" height="44" rx="7" fill="#0d2030" stroke="#10b981" stroke-width="1.2"/>
+        <text x="445" y="67" fill="#10b981" font-size="9" text-anchor="middle">Pod B</text>
+        <text x="445" y="81" fill="#546e7a" font-size="8" text-anchor="middle">10.0.1.2:8080</text>
+
+        <rect x="400" y="88" width="90" height="44" rx="7" fill="#0d2030" stroke="#10b981" stroke-width="1.2"/>
+        <text x="445" y="107" fill="#10b981" font-size="9" text-anchor="middle">Pod C</text>
+        <text x="445" y="121" fill="#546e7a" font-size="8" text-anchor="middle">10.0.1.3:8080</text>
+
+        <rect x="400" y="128" width="90" height="44" rx="7" fill="#0d2030" stroke="#10b981" stroke-width="1.2"/>
+        <text x="445" y="147" fill="#10b981" font-size="9" text-anchor="middle">Pod D</text>
+        <text x="445" y="161" fill="#546e7a" font-size="8" text-anchor="middle">10.0.2.5:8080</text>
+
+        <!-- Key note -->
+        <rect x="520" y="60" width="210" height="100" rx="8" fill="#050a0f" stroke="#1e2d3d" stroke-width="1"/>
+        <text x="540" y="82" fill="#00d9ff" font-size="9" font-weight="700">KEY FACTS</text>
+        <text x="540" y="100" fill="#546e7a" font-size="8.5">✓ Only reachable inside cluster</text>
+        <text x="540" y="116" fill="#546e7a" font-size="8.5">✓ Stable IP — never changes</text>
+        <text x="540" y="132" fill="#546e7a" font-size="8.5">✓ Packet never hits ClusterIP</text>
+        <text x="540" y="148" fill="#546e7a" font-size="8.5">  iptables rewrites dest IP</text>
+
+        <defs>
+          <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#00d9ff"/></marker>
+          <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981"/></marker>
+        </defs>
+      </svg>
+    </div>
+
+    <div class="highlight-box amber">
+      <p style="margin:0;"><strong style="color:var(--accent4);">🔑 The Trick:</strong> The ClusterIP address is <em>never actually reached</em> by any packet. When a pod sends traffic to <code>10.96.0.1:80</code>, the Linux kernel's <strong>iptables rules</strong> (written by kube-proxy) intercept the packet and rewrite the destination to one of the real pod IPs — before it ever leaves the node. The ClusterIP is a virtual illusion enforced in the kernel.</p>
+    </div>
+
+    <pre>apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+spec:
+  type: ClusterIP        # default — can omit this line
+  selector:
+    app: user-app        # routes to pods with this label
+  ports:
+  - port: 80             # port the Service listens on
+    targetPort: 8080     # port the pod actually runs on</pre>
+
+    <p><strong>Use when:</strong> Microservice-to-microservice communication inside the cluster. Your <code>auth-service</code> calling your <code>user-service</code>. Nobody outside the cluster needs to be involved.</p>
+  </div>
+</div>
+</section>
+
+<hr class="divider">
+
+<!-- NODEPORT -->
+<section id="nodeport">
+<div class="container">
+  <div class="reveal">
+    <div class="section-label">04 — Service Type 2</div>
+    <h2>NodePort — <span style="color:var(--accent4);">The Side Door on Every Floor</span></h2>
+
+    <div class="analogy">
+      <p>The VIP (LoadBalancer) doesn't exist yet. You need external traffic to reach your app. So you tell <strong>every security guard at every building entrance (every Node)</strong>: <em>"If anyone shows up and asks for door #30080, walk them to the reception desk (ClusterIP) inside."</em><br><br>NodePort <strong>punches a hole through the firewall on every single node simultaneously</strong> at a specific high-numbered port (30000–32767). Anyone who knows any node's IP + that port number can get in.</p>
+    </div>
+
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 760 270" width="760" height="270" font-family="JetBrains Mono" font-size="11">
+
+        <!-- Internet -->
+        <rect x="20" y="100" width="90" height="70" rx="8" fill="#0d2030" stroke="#546e7a" stroke-width="1.5"/>
+        <text x="65" y="131" fill="#cdd9e5" font-size="10" text-anchor="middle">Browser</text>
+        <text x="65" y="147" fill="#546e7a" font-size="8" text-anchor="middle">External</text>
+        <text x="65" y="159" fill="#546e7a" font-size="8" text-anchor="middle">Client</text>
+
+        <!-- Arrows to both nodes -->
+        <line x1="110" y1="125" x2="190" y2="105" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#a3)"/>
+        <line x1="110" y1="155" x2="190" y2="175" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#a3)"/>
+        <text x="140" y="130" fill="#f59e0b" font-size="8">:30080</text>
+        <text x="140" y="165" fill="#f59e0b" font-size="8">:30080</text>
+
+        <!-- Node 1 -->
+        <rect x="190" y="55" width="160" height="100" rx="8" fill="#0a1520" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="270" y="77" fill="#f59e0b" font-size="9" text-anchor="middle">Node 1</text>
+        <rect x="205" y="85" width="130" height="26" rx="5" fill="#0a1f30" stroke="#f59e0b" stroke-width="1"/>
+        <text x="270" y="102" fill="#f59e0b" font-size="8.5" text-anchor="middle">NodePort :30080 OPEN</text>
+        <rect x="225" y="120" width="90" height="24" rx="5" fill="#0d2030" stroke="#00d9ff" stroke-width="1"/>
+        <text x="270" y="136" fill="#00d9ff" font-size="8" text-anchor="middle">ClusterIP 10.96.0.1</text>
+
+        <!-- Node 2 -->
+        <rect x="190" y="175" width="160" height="100" rx="8" fill="#0a1520" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="270" y="197" fill="#f59e0b" font-size="9" text-anchor="middle">Node 2</text>
+        <rect x="205" y="205" width="130" height="26" rx="5" fill="#0a1f30" stroke="#f59e0b" stroke-width="1"/>
+        <text x="270" y="222" fill="#f59e0b" font-size="8.5" text-anchor="middle">NodePort :30080 OPEN</text>
+        <rect x="225" y="240" width="90" height="24" rx="5" fill="#0d2030" stroke="#00d9ff" stroke-width="1"/>
+        <text x="270" y="256" fill="#00d9ff" font-size="8" text-anchor="middle">ClusterIP 10.96.0.1</text>
+
+        <!-- To pods -->
+        <line x1="350" y1="132" x2="430" y2="110" stroke="#10b981" stroke-width="1.5" marker-end="url(#a4)"/>
+        <line x1="350" y1="254" x2="430" y2="165" stroke="#10b981" stroke-width="1.5" marker-end="url(#a4)"/>
+
+        <!-- Pods -->
+        <rect x="430" y="75" width="85" height="44" rx="7" fill="#0d2030" stroke="#10b981" stroke-width="1.2"/>
+        <text x="472" y="99" fill="#10b981" font-size="9" text-anchor="middle">Pod A</text>
+        <rect x="430" y="135" width="85" height="44" rx="7" fill="#0d2030" stroke="#10b981" stroke-width="1.2"/>
+        <text x="472" y="159" fill="#10b981" font-size="9" text-anchor="middle">Pod B</text>
+
+        <!-- Problem note -->
+        <rect x="540" y="55" width="200" height="160" rx="8" fill="#050a0f" stroke="#ef4444" stroke-width="1" stroke-dasharray="4,2"/>
+        <text x="560" y="77" fill="#ef4444" font-size="9" font-weight="700">⚠ THE PROBLEM</text>
+        <text x="560" y="97" fill="#546e7a" font-size="8">Client must know a</text>
+        <text x="560" y="111" fill="#546e7a" font-size="8">specific node's IP</text>
+        <text x="560" y="131" fill="#546e7a" font-size="8">Port 30080 is open on</text>
+        <text x="560" y="145" fill="#546e7a" font-size="8">EVERY node, even those</text>
+        <text x="560" y="159" fill="#546e7a" font-size="8">not running your app</text>
+        <text x="560" y="179" fill="#546e7a" font-size="8">High ports (ugly URLs)</text>
+        <text x="560" y="199" fill="#ef4444" font-size="8">→ LoadBalancer fixes this</text>
+
+        <defs>
+          <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#f59e0b"/></marker>
+          <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981"/></marker>
+        </defs>
+      </svg>
+    </div>
+
+    <p><strong>Use when:</strong> Local development, bare-metal clusters without a cloud LB, quick demos. Not recommended for production — it exposes high ports on every node and forces clients to know node IPs directly.</p>
+  </div>
+</div>
+</section>
+
+<hr class="divider">
+
+<!-- LOADBALANCER -->
+<section id="loadbalancer">
+<div class="container">
+  <div class="reveal">
+    <div class="section-label">05 — Service Type 3</div>
+    <h2>LoadBalancer — <span style="color:var(--accent3);">The VIP</span></h2>
+
+    <div class="analogy">
+      <p>You also nailed this: <strong>LoadBalancer = VIP</strong>. It's the single clean public-facing IP the world knows about. A professional front-of-building reception desk with its own well-known address on Google Maps. Visitors just go to that one address — they never need to know about individual nodes or ports.</p>
+    </div>
+
+    <p>LoadBalancer builds <em>on top of</em> NodePort and ClusterIP. Kubernetes calls your cloud provider's API (AWS, GCP, Azure) to provision an actual load balancer with a real public IP. The full chain is:</p>
+
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 760 140" width="760" height="140" font-family="JetBrains Mono" font-size="11">
+        <!-- boxes -->
+        <rect x="10"  y="45" width="110" height="50" rx="8" fill="#0d2030" stroke="#546e7a" stroke-width="1.5"/>
+        <text x="65"  y="67" fill="#cdd9e5" font-size="10" text-anchor="middle">Internet</text>
+        <text x="65"  y="82" fill="#546e7a" font-size="8.5" text-anchor="middle">:443 / :80</text>
+
+        <rect x="150" y="45" width="130" height="50" rx="8" fill="#0a1520" stroke="#10b981" stroke-width="2"/>
+        <text x="215" y="65" fill="#10b981" font-size="10" text-anchor="middle" font-weight="700">LoadBalancer</text>
+        <text x="215" y="80" fill="#546e7a" font-size="8" text-anchor="middle">Cloud LB  203.0.113.10</text>
+        <text x="215" y="92" fill="#546e7a" font-size="8" text-anchor="middle">(VIP — lives in cloud)</text>
+
+        <rect x="310" y="45" width="120" height="50" rx="8" fill="#0a1520" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="370" y="65" fill="#f59e0b" font-size="10" text-anchor="middle">NodePort</text>
+        <text x="370" y="80" fill="#546e7a" font-size="8" text-anchor="middle">Node? :30080</text>
+        <text x="370" y="92" fill="#546e7a" font-size="8" text-anchor="middle">(LB picks the node)</text>
+
+        <rect x="460" y="45" width="120" height="50" rx="8" fill="#0a1520" stroke="#00d9ff" stroke-width="1.5"/>
+        <text x="520" y="65" fill="#00d9ff" font-size="10" text-anchor="middle">ClusterIP</text>
+        <text x="520" y="80" fill="#546e7a" font-size="8" text-anchor="middle">10.96.0.1 (DIP)</text>
+        <text x="520" y="92" fill="#546e7a" font-size="8" text-anchor="middle">(internal virtual IP)</text>
+
+        <rect x="610" y="45" width="130" height="50" rx="8" fill="#0d2030" stroke="#10b981" stroke-width="1.2"/>
+        <text x="675" y="65" fill="#10b981" font-size="10" text-anchor="middle">Pod</text>
+        <text x="675" y="80" fill="#546e7a" font-size="8" text-anchor="middle">10.0.1.x:8080</text>
+        <text x="675" y="92" fill="#546e7a" font-size="8" text-anchor="middle">(your actual app)</text>
+
+        <!-- arrows -->
+        <line x1="120" y1="70" x2="148" y2="70" stroke="#cdd9e5" stroke-width="1.5" marker-end="url(#a5)"/>
+        <line x1="280" y1="70" x2="308" y2="70" stroke="#10b981" stroke-width="1.5" marker-end="url(#a5)"/>
+        <line x1="430" y1="70" x2="458" y2="70" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#a5)"/>
+        <line x1="580" y1="70" x2="608" y2="70" stroke="#00d9ff" stroke-width="1.5" marker-end="url(#a5)"/>
+
+        <!-- labels -->
+        <text x="65" y="125" fill="#10b981" font-size="8" text-anchor="middle">① One clean public IP</text>
+        <text x="215" y="125" fill="#10b981" font-size="8" text-anchor="middle">Cloud-provisioned LB</text>
+        <text x="370" y="125" fill="#f59e0b" font-size="8" text-anchor="middle">NodePort underneath</text>
+        <text x="520" y="125" fill="#00d9ff" font-size="8" text-anchor="middle">ClusterIP underneath</text>
+        <text x="675" y="125" fill="#10b981" font-size="8" text-anchor="middle">Your App</text>
+
+        <defs>
+          <marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#546e7a"/></marker>
+        </defs>
+      </svg>
+    </div>
+
+    <!-- Nesting dolls -->
+    <h3 style="margin-top:2rem;">The Russian Nesting Dolls 🪆</h3>
+    <p>LoadBalancer, NodePort, and ClusterIP are <strong>not separate things — they nest inside each other</strong>. Creating a LoadBalancer Service silently creates a NodePort and a ClusterIP underneath.</p>
+
+    <div style="display:flex;flex-direction:column;gap:0;margin:2rem 0;">
+      <div style="border:2px dashed #10b981;border-radius:12px;padding:1.5rem;background:rgba(16,185,129,0.04);">
+        <div style="font-family:'JetBrains Mono';font-size:.8rem;color:#10b981;margin-bottom:.5rem;">LoadBalancer  ← outermost layer (VIP)</div>
+        <div style="border:2px dashed #f59e0b;border-radius:10px;padding:1.2rem;background:rgba(245,158,11,0.04);">
+          <div style="font-family:'JetBrains Mono';font-size:.8rem;color:#f59e0b;margin-bottom:.5rem;">NodePort  ← middle layer (hole on every node)</div>
+          <div style="border:2px dashed #00d9ff;border-radius:8px;padding:1rem;background:rgba(0,217,255,0.04);">
+            <div style="font-family:'JetBrains Mono';font-size:.8rem;color:#00d9ff;">ClusterIP  ← innermost layer (the DIP, always present)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p><strong>Use when:</strong> Any production service exposed to the internet. Your main API, your frontend, anything users outside the cluster need to reach.</p>
+  </div>
+</div>
+</section>
+
+<hr class="divider">
+
+<!-- EXTERNALNAME -->
+<section id="externalname">
+<div class="container">
+  <div class="reveal">
+    <div class="section-label">06 — Service Type 4</div>
+    <h2>ExternalName — <span style="color:#a78bfa;">The Company DNS Alias</span></h2>
+
+    <div class="analogy">
+      <p>You compared it to <code>/etc/hosts</code> — the spirit is exactly right. But it's more precise: ExternalName is like adding a record to your <strong>company's internal DNS server</strong> (not a local hosts file) saying: <em>"whenever anyone inside asks for <code>my-db</code>, redirect them to <code>prod.database.amazonaws.com</code> instead."</em> It's cluster-wide, not machine-specific. The underlying mechanism is a <strong>DNS CNAME record</strong>, not an IP mapping.</p>
+    </div>
+
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 760 180" width="760" height="180" font-family="JetBrains Mono" font-size="11">
+        <!-- Pod -->
+        <rect x="20" y="65" width="100" height="50" rx="8" fill="#0d2030" stroke="#00d9ff" stroke-width="1.5"/>
+        <text x="70" y="87" fill="#00d9ff" font-size="10" text-anchor="middle">Your Pod</text>
+        <text x="70" y="102" fill="#546e7a" font-size="8.5" text-anchor="middle">calls "my-db"</text>
+
+        <!-- arrow -->
+        <line x1="120" y1="90" x2="180" y2="90" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#a6)"/>
+
+        <!-- ExternalName service -->
+        <rect x="180" y="55" width="145" height="70" rx="8" fill="#0a1020" stroke="#7c3aed" stroke-width="2"/>
+        <text x="252" y="79" fill="#a78bfa" font-size="10" text-anchor="middle" font-weight="700">ExternalName</text>
+        <text x="252" y="96" fill="#546e7a" font-size="8.5" text-anchor="middle">Service: my-db</text>
+        <text x="252" y="112" fill="#7c3aed" font-size="8" text-anchor="middle">DNS CNAME →</text>
+
+        <!-- CoreDNS -->
+        <rect x="360" y="55" width="130" height="70" rx="8" fill="#050a0f" stroke="#546e7a" stroke-width="1.5"/>
+        <text x="425" y="79" fill="#cdd9e5" font-size="10" text-anchor="middle">CoreDNS</text>
+        <text x="425" y="96" fill="#546e7a" font-size="8" text-anchor="middle">(cluster DNS server)</text>
+        <text x="425" y="112" fill="#546e7a" font-size="8" text-anchor="middle">returns CNAME</text>
+
+        <!-- External -->
+        <rect x="530" y="55" width="200" height="70" rx="8" fill="#0d2030" stroke="#546e7a" stroke-width="1.5"/>
+        <text x="630" y="79" fill="#cdd9e5" font-size="10" text-anchor="middle">prod.database</text>
+        <text x="630" y="93" fill="#cdd9e5" font-size="10" text-anchor="middle">.amazonaws.com</text>
+        <text x="630" y="110" fill="#546e7a" font-size="8" text-anchor="middle">External AWS RDS</text>
+
+        <!-- arrows -->
+        <line x1="325" y1="90" x2="358" y2="90" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#a6)"/>
+        <line x1="490" y1="90" x2="528" y2="90" stroke="#546e7a" stroke-width="1.5" marker-end="url(#a6)"/>
+
+        <!-- note -->
+        <text x="300" y="155" fill="#7c3aed" font-size="8.5" text-anchor="middle">No proxying. No IP assignment. Pure DNS redirection.</text>
+        <text x="300" y="170" fill="#546e7a" font-size="8" text-anchor="middle">Your code calls "my-db" and the DNS system handles the rest.</text>
+
+        <defs>
+          <marker id="a6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7c3aed"/></marker>
+        </defs>
+      </svg>
+    </div>
+
+    <pre>apiVersion: v1
+kind: Service
+metadata:
+  name: my-db
+spec:
+  type: ExternalName
+  externalName: prod.database.amazonaws.com   # the external DNS name</pre>
+
+    <p><strong>Use when:</strong> You're migrating a service (like an RDS database) into the cluster and want your app code to keep calling the same name. Or you want to abstract a third-party API behind a clean internal name so your code never changes even if the backend URL does.</p>
+  </div>
+</div>
+</section>
+
+<hr class="divider">
+
+<!-- HEADLESS -->
+<section id="headless">
+<div class="container">
+  <div class="reveal">
+    <div class="section-label">07 — Special Variant</div>
+    <h2>Headless Service — <span style="color:var(--accent4);">The Staff Directory</span></h2>
+
+    <div class="analogy">
+      <p>Normal ClusterIP = receptionist who picks one random person to handle your call.<br><br>Headless = you get handed the <strong>full staff directory</strong> for the department. You decide exactly who to call. This is critical for <strong>StatefulSets</strong> (MySQL, Kafka, Cassandra) where the client needs to reach <em>Pod 0 specifically</em>, not just any random replica.</p>
+    </div>
+
+    <p>Created by setting <code>clusterIP: None</code>. Returns DNS <strong>A records for all pod IPs directly</strong> instead of a single virtual IP. Each StatefulSet pod gets its own stable DNS name:</p>
+
+    <pre>mysql-0.mysql-svc.namespace.svc.cluster.local  →  10.0.1.2
+mysql-1.mysql-svc.namespace.svc.cluster.local  →  10.0.1.3
+mysql-2.mysql-svc.namespace.svc.cluster.local  →  10.0.2.5</pre>
+
+    <p>When you have a MySQL primary + replicas, your app connects directly to <code>mysql-0</code> for writes (primary) and distributes reads to <code>mysql-1</code>, <code>mysql-2</code>. A normal ClusterIP can't give you that precision — it would randomize traffic across all three, sending writes to replicas (disaster).</p>
+  </div>
+</div>
+</section>
+
+<hr class="divider">
+
+<!-- KUBE-PROXY -->
+<section id="kube-proxy">
+<div class="container">
+  <div class="reveal">
+    <div class="section-label">08 — The Engine Room</div>
+    <h2>kube-proxy — <span style="color:var(--accent);">The Road Sign Painter</span></h2>
+
+    <div class="analogy">
+      <p>kube-proxy is <strong>not a load balancer in the traditional sense</strong>. It doesn't sit in the traffic path like Nginx or HAProxy. Think of it as a <strong>traffic warden who paints road signs</strong> — it never stands in the road directing cars itself, but it ensures all the signs (iptables rules) are correct so the road system routes cars automatically. The actual traffic never touches kube-proxy — it flows kernel → iptables → pod directly.</p>
+    </div>
+
+    <div class="two-col">
+      <div class="highlight-box red">
+        <h3 style="color:var(--accent5);">Traditional Load Balancer</h3>
+        <div class="timeline">
+          <div class="tl-item">Sits in the traffic path</div>
+          <div class="tl-item">Processes every packet</div>
+          <div class="tl-item">Has its own IP address</div>
+          <div class="tl-item">Nginx, HAProxy, Envoy</div>
+        </div>
+      </div>
+      <div class="highlight-box">
+        <h3 style="color:var(--accent3);">kube-proxy</h3>
+        <div class="timeline">
+          <div class="tl-item">Never touches traffic</div>
+          <div class="tl-item">Only updates iptables/IPVS rules</div>
+          <div class="tl-item">No traffic IP of its own</div>
+          <div class="tl-item">Rule programmer / control agent</div>
+        </div>
+      </div>
+    </div>
+
+    <p>kube-proxy runs as a <strong>DaemonSet</strong> — one instance on every node (you already know DaemonSets). It watches the Kubernetes API for Service and Endpoint changes. When a pod dies and a new one starts (new IP), kube-proxy updates the iptables rules on every node within seconds so traffic is re-routed automatically.</p>
+
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 760 200" width="760" height="200" font-family="JetBrains Mono" font-size="11">
+        <!-- API Server -->
+        <rect x="10" y="75" width="130" height="50" rx="8" fill="#0a1520" stroke="#7c3aed" stroke-width="1.5"/>
+        <text x="75" y="97" fill="#a78bfa" font-size="10" text-anchor="middle">API Server</text>
+        <text x="75" y="112" fill="#546e7a" font-size="8.5" text-anchor="middle">Service/Endpoint</text>
+        <text x="75" y="124" fill="#546e7a" font-size="8.5" text-anchor="middle">changes</text>
+
+        <!-- kube-proxy watches -->
+        <line x1="140" y1="100" x2="195" y2="100" stroke="#7c3aed" stroke-dasharray="4,2" stroke-width="1.5" marker-end="url(#a7)"/>
+        <text x="168" y="93" fill="#7c3aed" font-size="8" text-anchor="middle">watches</text>
+
+        <!-- kube-proxy -->
+        <rect x="195" y="65" width="140" height="70" rx="8" fill="#0a1020" stroke="#00d9ff" stroke-width="2"/>
+        <text x="265" y="88" fill="#00d9ff" font-size="10" text-anchor="middle" font-weight="700">kube-proxy</text>
+        <text x="265" y="105" fill="#546e7a" font-size="8" text-anchor="middle">DaemonSet — 1 per node</text>
+        <text x="265" y="120" fill="#546e7a" font-size="8" text-anchor="middle">iptables/IPVS writer</text>
+
+        <!-- writes to iptables -->
+        <line x1="335" y1="100" x2="395" y2="100" stroke="#00d9ff" stroke-width="1.5" marker-end="url(#a7)"/>
+        <text x="365" y="93" fill="#00d9ff" font-size="8" text-anchor="middle">writes</text>
+
+        <!-- iptables -->
+        <rect x="395" y="55" width="155" height="90" rx="8" fill="#050a0f" stroke="#10b981" stroke-width="1.5"/>
+        <text x="472" y="78" fill="#10b981" font-size="10" text-anchor="middle">iptables rules</text>
+        <text x="472" y="95" fill="#546e7a" font-size="8">10.96.0.1:80 → 10.0.1.2:8080</text>
+        <text x="472" y="109" fill="#546e7a" font-size="8">10.96.0.1:80 → 10.0.1.3:8080</text>
+        <text x="472" y="123" fill="#546e7a" font-size="8">10.96.0.1:80 → 10.0.2.5:8080</text>
+        <text x="472" y="137" fill="#546e7a" font-size="7.5">(kernel handles routing)</text>
+
+        <!-- traffic bypasses kube-proxy -->
+        <path d="M 265 135 Q 265 170 472 175 Q 600 175 650 135" fill="none" stroke="#546e7a" stroke-dasharray="3,3" stroke-width="1"/>
+        <text x="460" y="190" fill="#546e7a" font-size="8" text-anchor="middle">actual traffic bypasses kube-proxy entirely — kernel uses the rules directly</text>
+
+        <defs>
+          <marker id="a7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#546e7a"/></marker>
+        </defs>
+      </svg>
+    </div>
+  </div>
+</div>
+</section>
+
+<hr class="divider">
+
+<!-- INGRESS -->
+<section id="ingress">
+<div class="container">
+  <div class="reveal">
+    <div class="section-label">09 — Layer 7 Routing</div>
+    <h2>Ingress — <span style="color:var(--accent);">The Smart Hotel Receptionist</span></h2>
+
+    <div class="analogy">
+      <p>Without Ingress, exposing 5 microservices means 5 LoadBalancer Services → 5 cloud load balancers → 5 public IPs → 5 separate bills. <br><br>Ingress is like a <strong>smart hotel receptionist sitting at one front desk with one address</strong>. You walk in and say <em>"I'm here for the restaurant"</em> or <em>"I'm here for the spa."</em> They read your request and route you to the right place. <strong>One entrance. Many destinations.</strong></p>
+    </div>
+
+    <div class="highlight-box amber">
+      <p style="margin:0;"><strong style="color:var(--accent4);">⚡ Key Distinction:</strong> Everything below Ingress (LoadBalancer, NodePort, ClusterIP) operates at <strong>Layer 4</strong> — they understand IPs and ports only. Ingress operates at <strong>Layer 7</strong> — it understands HTTP hostnames, URL paths, headers. That's its superpower.</p>
+    </div>
+
+    <h3>The Two Parts You Must Know</h3>
+
+    <div class="two-col">
+      <div class="card">
+        <div class="card-icon">📋</div>
+        <h3>Ingress Resource</h3>
+        <p>A YAML config file — just routing rules. Declares "traffic to /api goes to user-service." It does absolutely nothing by itself — it's just a document.</p>
+        <span class="tag tag-amber">The Policy Document</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚙️</div>
+        <h3>Ingress Controller</h3>
+        <p>The actual running software that reads and enforces those rules. Kubernetes does NOT ship one — you install it. Popular: Nginx, Traefik, AWS ALB, Kong.</p>
+        <span class="tag tag-blue">The Enforcer</span>
+      </div>
+    </div>
+
+    <!-- Tabs for routing types -->
+    <div class="tabs" style="margin-top:2rem;">
+      <div class="tab-btns">
+        <button class="tab-btn active" onclick="showTab('path')">Path-Based Routing</button>
+        <button class="tab-btn" onclick="showTab('host')">Host-Based Routing</button>
+        <button class="tab-btn" onclick="showTab('tls')">TLS Termination</button>
+        <button class="tab-btn" onclick="showTab('annotations')">Annotations</button>
+      </div>
+
+      <div id="tab-path" class="tab-panel active">
+        <p>One domain, split by URL path. Same hostname, different services based on what path the request hits:</p>
+        <div class="diagram-wrap">
+          <svg viewBox="0 0 700 180" width="700" height="180" font-family="JetBrains Mono" font-size="11">
+            <rect x="10" y="65" width="140" height="50" rx="8" fill="#0d2030" stroke="#546e7a" stroke-width="1.5"/>
+            <text x="80" y="88" fill="#cdd9e5" font-size="9" text-anchor="middle">myapp.com/api</text>
+            <text x="80" y="103" fill="#546e7a" font-size="8.5" text-anchor="middle">myapp.com/shop</text>
+
+            <rect x="190" y="40" width="130" height="110" rx="8" fill="#0a1020" stroke="#00d9ff" stroke-width="2"/>
+            <text x="255" y="65" fill="#00d9ff" font-size="10" text-anchor="middle" font-weight="700">Ingress</text>
+            <text x="255" y="82" fill="#546e7a" font-size="8">/api → user-svc</text>
+            <text x="255" y="96" fill="#546e7a" font-size="8">/shop → product-svc</text>
+            <text x="255" y="110" fill="#546e7a" font-size="8">/orders → order-svc</text>
+            <text x="255" y="136" fill="#7c3aed" font-size="8" text-anchor="middle">Controller</text>
+
+            <line x1="150" y1="90" x2="188" y2="90" stroke="#00d9ff" stroke-width="1.5" marker-end="url(#ai1)"/>
+
+            <line x1="320" y1="70" x2="390" y2="55" stroke="#10b981" stroke-width="1.5" marker-end="url(#ai1)"/>
+            <line x1="320" y1="90" x2="390" y2="90" stroke="#10b981" stroke-width="1.5" marker-end="url(#ai1)"/>
+            <line x1="320" y1="110" x2="390" y2="128" stroke="#10b981" stroke-width="1.5" marker-end="url(#ai1)"/>
+
+            <rect x="390" y="34" width="110" height="36" rx="6" fill="#0d2030" stroke="#10b981" stroke-width="1.2"/>
+            <text x="445" y="56" fill="#10b981" font-size="9" text-anchor="middle">user-svc</text>
+            <rect x="390" y="72" width="110" height="36" rx="6" fill="#0d2030" stroke="#10b981" stroke-width="1.2"/>
+            <text x="445" y="94" fill="#10b981" font-size="9" text-anchor="middle">product-svc</text>
+            <rect x="390" y="110" width="110" height="36" rx="6" fill="#0d2030" stroke="#10b981" stroke-width="1.2"/>
+            <text x="445" y="132" fill="#10b981" font-size="9" text-anchor="middle">order-svc</text>
+
+            <rect x="530" y="45" width="150" height="100" rx="8" fill="#050a0f" stroke="#1e2d3d" stroke-width="1"/>
+            <text x="605" y="68" fill="#00d9ff" font-size="9" text-anchor="middle">1 LoadBalancer</text>
+            <text x="605" y="84" fill="#10b981" font-size="9" text-anchor="middle">vs</text>
+            <text x="605" y="100" fill="#ef4444" font-size="9" text-anchor="middle">3 LoadBalancers</text>
+            <text x="605" y="120" fill="#546e7a" font-size="8" text-anchor="middle">without Ingress</text>
+            <text x="605" y="135" fill="#546e7a" font-size="8" text-anchor="middle">3× the cloud bill 💸</text>
+
+            <defs><marker id="ai1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#546e7a"/></marker></defs>
+          </svg>
+        </div>
+      </div>
+
+      <div id="tab-host" class="tab-panel">
+        <p>Multiple subdomains, each routed to a different service. The Ingress Controller reads the <code>Host</code> HTTP header:</p>
+        <pre>api.myapp.com      ──→  user-service:80
+shop.myapp.com     ──→  product-service:80
+admin.myapp.com    ──→  admin-service:80</pre>
+        <p>All three subdomains point to the same LoadBalancer IP in DNS. The Ingress Controller inspects the Host header and routes accordingly. Zero extra cloud LBs needed.</p>
+      </div>
+
+      <div id="tab-tls" class="tab-panel">
+        <p>Ingress handles HTTPS encryption at the edge. Traffic inside the cluster can stay as plain HTTP — the TLS is <em>terminated</em> at the Ingress Controller.</p>
+        <div class="analogy" style="margin-top:1rem;">
+          <p>Like a <strong>security checkpoint at the building entrance</strong> that verifies your encrypted ID card, then lets you walk freely inside without showing it again at every desk.</p>
+        </div>
+        <pre>spec:
+  tls:
+  - hosts:
+    - myapp.com
+    secretName: myapp-tls-cert   # TLS cert stored as K8s Secret
+  rules:
+  - host: myapp.com
+    http:
+      paths:
+      - path: /
+        backend:
+          service:
+            name: my-service
+            port: 80</pre>
+      </div>
+
+      <div id="tab-annotations" class="tab-panel">
+        <p>Annotations are controller-specific configuration <strong>sticky notes</strong> on the Ingress resource. The main rules say where to route; annotations control <em>how</em> to route:</p>
+        <pre>annotations:
+  nginx.ingress.kubernetes.io/rate-limit: "100"       # 100 req/min
+  nginx.ingress.kubernetes.io/rewrite-target: /        # URL rewrite
+  nginx.ingress.kubernetes.io/ssl-redirect: "true"     # force HTTPS
+  nginx.ingress.kubernetes.io/proxy-body-size: "50m"   # upload limit
+  nginx.ingress.kubernetes.io/enable-cors: "true"      # CORS headers</pre>
+        <p>These are Nginx-specific. AWS ALB, Traefik, and Kong all have their own annotation schemas. This is why the Ingress spec says "use this controller" — annotation keys are tied to the controller implementation.</p>
+      </div>
+    </div>
+
+    <!-- Full traffic flow -->
+    <h3 style="margin-top:2rem;">The Complete Traffic Flow</h3>
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 760 100" width="760" height="100" font-family="JetBrains Mono" font-size="11">
+        <rect x="5"   y="25" width="90"  height="50" rx="7" fill="#0d2030" stroke="#546e7a" stroke-width="1.5"/>
+        <text x="50"  y="48" fill="#cdd9e5" font-size="9" text-anchor="middle">Browser</text>
+        <text x="50"  y="62" fill="#546e7a" font-size="7.5" text-anchor="middle">HTTPS :443</text>
+
+        <rect x="115" y="25" width="100" height="50" rx="7" fill="#0a1520" stroke="#10b981" stroke-width="1.5"/>
+        <text x="165" y="46" fill="#10b981" font-size="9" text-anchor="middle">LoadBalancer</text>
+        <text x="165" y="60" fill="#546e7a" font-size="7.5" text-anchor="middle">VIP — Cloud LB</text>
+        <text x="165" y="71" fill="#546e7a" font-size="7.5" text-anchor="middle">1 public IP</text>
+
+        <rect x="235" y="25" width="120" height="50" rx="7" fill="#0a1020" stroke="#00d9ff" stroke-width="2"/>
+        <text x="295" y="46" fill="#00d9ff" font-size="9" text-anchor="middle" font-weight="700">Ingress Ctrl</text>
+        <text x="295" y="60" fill="#546e7a" font-size="7.5" text-anchor="middle">L7 routing decision</text>
+        <text x="295" y="71" fill="#7c3aed" font-size="7.5" text-anchor="middle">TLS termination</text>
+
+        <rect x="375" y="25" width="100" height="50" rx="7" fill="#0a1520" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="425" y="48" fill="#f59e0b" font-size="9" text-anchor="middle">ClusterIP</text>
+        <text x="425" y="62" fill="#546e7a" font-size="7.5" text-anchor="middle">internal DIP</text>
+
+        <rect x="495" y="25" width="110" height="50" rx="7" fill="#0a1520" stroke="#10b981" stroke-width="1.5"/>
+        <text x="550" y="46" fill="#10b981" font-size="9" text-anchor="middle">kube-proxy</text>
+        <text x="550" y="60" fill="#546e7a" font-size="7.5" text-anchor="middle">iptables rules</text>
+        <text x="550" y="71" fill="#546e7a" font-size="7.5" text-anchor="middle">load balance</text>
+
+        <rect x="625" y="25" width="120" height="50" rx="7" fill="#0d2030" stroke="#10b981" stroke-width="1.2"/>
+        <text x="685" y="46" fill="#10b981" font-size="9" text-anchor="middle">Your Pod</text>
+        <text x="685" y="60" fill="#546e7a" font-size="7.5" text-anchor="middle">actual app</text>
+
+        <!-- arrows -->
+        <line x1="95"  y1="50" x2="113" y2="50" stroke="#cdd9e5" stroke-width="1.5" marker-end="url(#af)"/>
+        <line x1="215" y1="50" x2="233" y2="50" stroke="#10b981" stroke-width="1.5" marker-end="url(#af)"/>
+        <line x1="355" y1="50" x2="373" y2="50" stroke="#00d9ff" stroke-width="1.5" marker-end="url(#af)"/>
+        <line x1="475" y1="50" x2="493" y2="50" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#af)"/>
+        <line x1="605" y1="50" x2="623" y2="50" stroke="#10b981" stroke-width="1.5" marker-end="url(#af)"/>
+
+        <defs><marker id="af" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#546e7a"/></marker></defs>
+      </svg>
+    </div>
+  </div>
+</div>
+</section>
+
+<hr class="divider">
+
+<!-- CHEATSHEET -->
+<section id="cheatsheet">
+<div class="container">
+  <div class="reveal">
+    <div class="section-label">10 — The Master Reference</div>
+    <h2>Complete Cheatsheet</h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Type</th><th>Accessible From</th><th>Your Analogy</th><th>Layer</th><th>Cloud LB?</th><th>Use Case</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="tag tag-blue">ClusterIP</span></td>
+            <td>Inside cluster only</td>
+            <td>Internal intercom / DIP</td>
+            <td>L4</td>
+            <td>❌</td>
+            <td>Microservice-to-microservice</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-amber">NodePort</span></td>
+            <td>External (via node IP)</td>
+            <td>Side door on every floor</td>
+            <td>L4</td>
+            <td>❌</td>
+            <td>Dev/testing, bare-metal</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-green">LoadBalancer</span></td>
+            <td>External (clean public IP)</td>
+            <td>VIP / professional front desk</td>
+            <td>L4</td>
+            <td>✅</td>
+            <td>Production internet traffic</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-purple">ExternalName</span></td>
+            <td>Inside cluster only</td>
+            <td>Company DNS CNAME alias</td>
+            <td>DNS</td>
+            <td>❌</td>
+            <td>Aliasing external services</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-amber">Headless</span></td>
+            <td>Inside cluster only</td>
+            <td>Full staff directory</td>
+            <td>DNS</td>
+            <td>❌</td>
+            <td>StatefulSets (DBs, Kafka)</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-blue">Ingress</span></td>
+            <td>External (L7 HTTP/S)</td>
+            <td>Smart hotel receptionist</td>
+            <td>L7</td>
+            <td>1 shared ✅</td>
+            <td>Multiple services, 1 LB</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:2rem;">The One Diagram That Shows Everything</h3>
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 760 380" width="760" height="380" font-family="JetBrains Mono" font-size="10">
+        <!-- Internet -->
+        <rect x="10" y="10" width="100" height="50" rx="7" fill="#0d2030" stroke="#546e7a" stroke-width="1.5"/>
+        <text x="60" y="32" fill="#cdd9e5" font-size="10" text-anchor="middle">INTERNET</text>
+        <text x="60" y="48" fill="#546e7a" font-size="8" text-anchor="middle">External clients</text>
+
+        <!-- LoadBalancer -->
+        <rect x="140" y="10" width="120" height="50" rx="7" fill="#0a1520" stroke="#10b981" stroke-width="2"/>
+        <text x="200" y="30" fill="#10b981" font-size="10" text-anchor="middle" font-weight="700">LoadBalancer</text>
+        <text x="200" y="46" fill="#546e7a" font-size="8" text-anchor="middle">VIP (cloud-provisioned)</text>
+
+        <!-- Ingress -->
+        <rect x="290" y="10" width="120" height="50" rx="7" fill="#050a0f" stroke="#00d9ff" stroke-width="2"/>
+        <text x="350" y="30" fill="#00d9ff" font-size="10" text-anchor="middle" font-weight="700">Ingress Ctrl</text>
+        <text x="350" y="46" fill="#546e7a" font-size="8" text-anchor="middle">L7 routing (HTTP/S)</text>
+
+        <!-- cluster boundary -->
+        <rect x="10" y="80" width="740" height="290" rx="12" fill="none" stroke="#1e2d3d" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <text x="30" y="98" fill="#546e7a" font-size="8.5">CLUSTER (your VPC)</text>
+
+        <!-- kube-proxy label -->
+        <rect x="440" y="10" width="130" height="50" rx="7" fill="#050a0f" stroke="#7c3aed" stroke-width="1.5"/>
+        <text x="505" y="30" fill="#a78bfa" font-size="10" text-anchor="middle">kube-proxy</text>
+        <text x="505" y="46" fill="#546e7a" font-size="8" text-anchor="middle">iptables writer (DaemonSet)</text>
+
+        <!-- NodePort bar -->
+        <rect x="30" y="105" width="700" height="28" rx="6" fill="#0a1520" stroke="#f59e0b" stroke-width="1.2"/>
+        <text x="380" y="123" fill="#f59e0b" font-size="9" text-anchor="middle">NodePort :30000–32767 — hole punched on EVERY node</text>
+
+        <!-- Node 1 -->
+        <rect x="30" y="150" width="330" height="200" rx="10" fill="#080d14" stroke="#1e2d3d" stroke-width="1.5"/>
+        <text x="55" y="170" fill="#f59e0b" font-size="9">Node 1 (Subnet 10.0.1.0/24)</text>
+
+        <!-- ClusterIP in node 1 -->
+        <rect x="50" y="180" width="130" height="40" rx="6" fill="#0a1520" stroke="#00d9ff" stroke-width="1.5"/>
+        <text x="115" y="197" fill="#00d9ff" font-size="9" text-anchor="middle" font-weight="700">ClusterIP (DIP)</text>
+        <text x="115" y="211" fill="#546e7a" font-size="7.5" text-anchor="middle">10.96.0.1 — virtual</text>
+
+        <!-- Pods in node 1 -->
+        <rect x="50" y="235" width="90" height="40" rx="6" fill="#0d2030" stroke="#10b981" stroke-width="1.2"/>
+        <text x="95" y="253" fill="#10b981" font-size="9" text-anchor="middle">Pod A</text>
+        <text x="95" y="266" fill="#546e7a" font-size="7.5" text-anchor="middle">10.0.1.2</text>
+        <rect x="155" y="235" width="90" height="40" rx="6" fill="#0d2030" stroke="#10b981" stroke-width="1.2"/>
+        <text x="200" y="253" fill="#10b981" font-size="9" text-anchor="middle">Pod B</text>
+        <text x="200" y="266" fill="#546e7a" font-size="7.5" text-anchor="middle">10.0.1.3</text>
+
+        <!-- Node 2 -->
+        <rect x="390" y="150" width="330" height="200" rx="10" fill="#080d14" stroke="#1e2d3d" stroke-width="1.5"/>
+        <text x="415" y="170" fill="#f59e0b" font-size="9">Node 2 (Subnet 10.0.2.0/24)</text>
+
+        <rect x="410" y="180" width="130" height="40" rx="6" fill="#0a1520" stroke="#00d9ff" stroke-width="1.5"/>
+        <text x="475" y="197" fill="#00d9ff" font-size="9" text-anchor="middle" font-weight="700">ClusterIP (DIP)</text>
+        <text x="475" y="211" fill="#546e7a" font-size="7.5" text-anchor="middle">10.96.0.1 — virtual</text>
+
+        <rect x="410" y="235" width="90" height="40" rx="6" fill="#0d2030" stroke="#10b981" stroke-width="1.2"/>
+        <text x="455" y="253" fill="#10b981" font-size="9" text-anchor="middle">Pod C</text>
+        <text x="455" y="266" fill="#546e7a" font-size="7.5" text-anchor="middle">10.0.2.5</text>
+        <rect x="515" y="235" width="90" height="40" rx="6" fill="#0d2030" stroke="#10b981" stroke-width="1.2"/>
+        <text x="560" y="253" fill="#10b981" font-size="9" text-anchor="middle">Pod D</text>
+        <text x="560" y="266" fill="#546e7a" font-size="7.5" text-anchor="middle">10.0.2.6</text>
+
+        <!-- ExternalName -->
+        <rect x="200" y="305" width="330" height="40" rx="6" fill="#0a1020" stroke="#7c3aed" stroke-width="1" stroke-dasharray="3,2"/>
+        <text x="365" y="320" fill="#a78bfa" font-size="9" text-anchor="middle">ExternalName → prod.database.amazonaws.com</text>
+        <text x="365" y="336" fill="#546e7a" font-size="7.5" text-anchor="middle">DNS CNAME redirect (no proxy)</text>
+
+        <!-- Arrows -->
+        <line x1="110" y1="35" x2="138" y2="35" stroke="#cdd9e5" stroke-width="1.5" marker-end="url(#am)"/>
+        <line x1="260" y1="35" x2="288" y2="35" stroke="#10b981" stroke-width="1.5" marker-end="url(#am)"/>
+        <line x1="200" y1="60" x2="200" y2="105" stroke="#10b981" stroke-width="1.5" marker-end="url(#am)"/>
+        <line x1="350" y1="60" x2="350" y2="105" stroke="#00d9ff" stroke-width="1.5" marker-end="url(#am)"/>
+
+        <line x1="115" y1="133" x2="115" y2="180" stroke="#00d9ff" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#am)"/>
+        <line x1="475" y1="133" x2="475" y2="180" stroke="#00d9ff" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#am)"/>
+
+        <line x1="115" y1="220" x2="95" y2="235" stroke="#10b981" stroke-width="1.2" marker-end="url(#am)"/>
+        <line x1="115" y1="220" x2="200" y2="235" stroke="#10b981" stroke-width="1.2" marker-end="url(#am)"/>
+        <line x1="475" y1="220" x2="455" y2="235" stroke="#10b981" stroke-width="1.2" marker-end="url(#am)"/>
+        <line x1="475" y1="220" x2="560" y2="235" stroke="#10b981" stroke-width="1.2" marker-end="url(#am)"/>
+
+        <defs><marker id="am" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#546e7a"/></marker></defs>
+      </svg>
+    </div>
+  </div>
+</div>
+</section>
+
+<hr class="divider">
+
+<!-- DECISION GUIDE -->
+<section>
+<div class="container">
+  <div class="reveal">
+    <div class="section-label">11 — Decision Guide</div>
+    <h2>Which Service Do I Use?</h2>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-icon">🔒</div>
+        <h3>Internal communication?</h3>
+        <p>Pods calling other pods within the cluster — auth calling users, frontend calling backend.</p>
+        <span class="tag tag-blue">Use ClusterIP</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">🛠️</div>
+        <h3>Testing locally / bare metal?</h3>
+        <p>No cloud provider. You want external access without setting up a full LB.</p>
+        <span class="tag tag-amber">Use NodePort</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">🌐</div>
+        <h3>Production internet traffic?</h3>
+        <p>Real users on the internet hitting your API or frontend. Cloud provider available.</p>
+        <span class="tag tag-green">Use LoadBalancer</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">🗺️</div>
+        <h3>Multiple services, 1 domain?</h3>
+        <p>You want /api, /shop, /admin to route to different services. One public IP.</p>
+        <span class="tag tag-blue">Use Ingress</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔗</div>
+        <h3>Wrapping external service?</h3>
+        <p>RDS database, third-party API — want a clean internal name for it.</p>
+        <span class="tag tag-purple">Use ExternalName</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">🗄️</div>
+        <h3>Stateful app (DB, Kafka)?</h3>
+        <p>Need to talk to specific named pods, not random replicas. StatefulSet use case.</p>
+        <span class="tag tag-amber">Use Headless</span>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div style="font-size:.8rem;color:var(--accent);margin-bottom:.5rem;">k8s://services — Abdullah's Deep Dive</div>
+  <div>Built from first principles · All analogies are yours · Everything connects 🚀</div>
+</footer>
+
+<script>
+  // ─── Tab switching
+  function showTab(id) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    event.target.classList.add('active');
+  }
+
+  // ─── Scroll reveal
+  const revealEls = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  revealEls.forEach(el => observer.observe(el));
+</script>
+</body>
+</html>

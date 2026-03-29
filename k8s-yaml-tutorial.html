@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Writing Kubernetes YAML — A Practical Tutorial</title>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0c0c0c;
+  --bg2: #111111;
+  --bg3: #181818;
+  --border: #222;
+  --green: #4ade80;
+  --green2: #166534;
+  --amber: #fbbf24;
+  --blue: #60a5fa;
+  --red: #f87171;
+  --purple: #c084fc;
+  --cyan: #22d3ee;
+  --text: #d4d4d4;
+  --muted: #525252;
+  --card: #141414;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body {
+  background:var(--bg);
+  color:var(--text);
+  font-family:'DM Sans', sans-serif;
+  line-height:1.75;
+  overflow-x:hidden;
+}
+
+/* SCAN-LINE EFFECT */
+body::after {
+  content:'';
+  position:fixed;
+  inset:0;
+  background:repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  pointer-events:none;
+  z-index:9999;
+}
+
+/* NAV */
+nav {
+  position:fixed; top:0; left:0; right:0; z-index:100;
+  background:rgba(12,12,12,0.92);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:1.5rem;
+  padding:0 2rem; height:52px;
+}
+.brand { font-family:'Fira Code'; color:var(--green); font-size:.8rem; }
+.brand span { color:var(--muted); }
+.nav-items { display:flex; gap:1.2rem; margin-left:auto; flex-wrap:wrap; }
+.nav-items a { font-family:'Fira Code'; font-size:.7rem; color:var(--muted); text-decoration:none; transition:.2s; }
+.nav-items a:hover { color:var(--green); }
+
+/* HERO */
+.hero {
+  min-height:100vh;
+  display:flex; flex-direction:column; justify-content:center;
+  padding:6rem 2rem 4rem;
+  max-width:900px; margin:0 auto;
+  position:relative;
+}
+.hero-eyebrow {
+  font-family:'Fira Code'; font-size:.75rem; color:var(--green);
+  margin-bottom:1.5rem;
+  display:flex; align-items:center; gap:.75rem;
+}
+.hero-eyebrow::before { content:'$'; color:var(--muted); }
+.blink { animation:blink 1.2s step-end infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+.hero h1 { font-size:clamp(2.2rem,5vw,4rem); font-weight:800; line-height:1.1; margin-bottom:1.5rem; }
+.hero h1 em { font-style:normal; color:var(--green); }
+.hero p { font-size:1.05rem; color:#737373; max-width:580px; }
+
+.answer-box {
+  margin:2.5rem 0;
+  background:#0f1f0f;
+  border:1px solid #1a3a1a;
+  border-left:3px solid var(--green);
+  border-radius:8px;
+  padding:1.5rem;
+}
+.answer-box .q { font-family:'Fira Code'; font-size:.8rem; color:var(--muted); margin-bottom:.5rem; }
+.answer-box .a { font-size:1rem; color:var(--text); }
+.answer-box .a strong { color:var(--green); }
+
+/* SECTIONS */
+section { padding:5rem 0; border-top:1px solid var(--border); }
+.container { max-width:900px; margin:0 auto; padding:0 2rem; }
+.sec-label { font-family:'Fira Code'; font-size:.7rem; color:var(--green); margin-bottom:.75rem; }
+.sec-label::before { content:'## '; color:var(--muted); }
+h2 { font-size:clamp(1.6rem,3vw,2.2rem); font-weight:800; margin-bottom:1rem; }
+h3 { font-size:1.1rem; font-weight:700; margin:1.5rem 0 .6rem; color:var(--text); }
+p { color:#a3a3a3; margin-bottom:1rem; }
+strong { color:var(--text); font-weight:600; }
+
+/* NOTE BOXES */
+.note { border-radius:8px; padding:1rem 1.25rem; margin:1.5rem 0; }
+.note-green { background:#0a1f0a; border:1px solid #1a4d1a; }
+.note-amber { background:#1a1400; border:1px solid #4a3800; }
+.note-red   { background:#1a0a0a; border:1px solid #4a1a1a; }
+.note-blue  { background:#0a0f1a; border:1px solid #1a2a4a; }
+.note-label { font-family:'Fira Code'; font-size:.65rem; letter-spacing:.1em; margin-bottom:.4rem; display:block; }
+.note-green .note-label  { color:var(--green); }
+.note-amber .note-label  { color:var(--amber); }
+.note-red .note-label    { color:var(--red); }
+.note-blue .note-label   { color:var(--blue); }
+.note p { margin:0; font-size:.92rem; }
+
+/* YAML CODE BLOCKS — ANNOTATED */
+.yaml-block {
+  background:#0a0a0a;
+  border:1px solid var(--border);
+  border-radius:10px;
+  margin:1.5rem 0;
+  overflow:hidden;
+}
+.yaml-header {
+  background:#141414;
+  border-bottom:1px solid var(--border);
+  padding:.6rem 1.25rem;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.yaml-header span { font-family:'Fira Code'; font-size:.72rem; color:var(--muted); }
+.yaml-header .file-name { color:var(--amber); }
+.yaml-body { padding:1.25rem; overflow-x:auto; }
+.yaml-body pre { font-family:'Fira Code'; font-size:.82rem; line-height:2; tab-size:2; }
+
+/* Syntax colors */
+.y-key   { color:var(--blue); }
+.y-val   { color:var(--green); }
+.y-str   { color:var(--amber); }
+.y-num   { color:var(--purple); }
+.y-bool  { color:var(--cyan); }
+.y-com   { color:var(--muted); font-style:italic; }
+.y-imp   { color:var(--red); font-weight:600; }
+
+/* Tooltip annotations */
+.ann {
+  position:relative;
+  cursor:help;
+  border-bottom:1px dashed;
+}
+.ann-key   { border-color:rgba(96,165,250,0.5); }
+.ann-val   { border-color:rgba(74,222,128,0.5); }
+.ann-imp   { border-color:rgba(248,113,113,0.5); }
+.ann-amber { border-color:rgba(251,191,36,0.5); }
+.ann-tip {
+  display:none;
+  position:absolute;
+  left:0; top:calc(100% + 8px);
+  background:#1c1c1c;
+  border:1px solid #333;
+  border-radius:6px;
+  padding:.6rem .9rem;
+  font-family:'DM Sans'; font-size:.78rem; color:var(--text);
+  white-space:normal; width:260px; z-index:50;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);
+  line-height:1.5;
+}
+.ann:hover .ann-tip { display:block; }
+
+/* FIELDS TABLE */
+.fields { display:grid; gap:1px; background:var(--border); border-radius:10px; overflow:hidden; margin:1.5rem 0; }
+.field-row { background:var(--card); padding:.9rem 1.2rem; display:grid; grid-template-columns:140px 80px 1fr; gap:1rem; align-items:start; }
+.field-row:hover { background:#161616; }
+.field-name { font-family:'Fira Code'; font-size:.8rem; color:var(--blue); }
+.field-req { font-family:'Fira Code'; font-size:.7rem; padding:.15rem .5rem; border-radius:4px; display:inline-block; }
+.req-yes { background:rgba(248,113,113,.15); color:var(--red); border:1px solid rgba(248,113,113,.2); }
+.req-no  { background:rgba(82,82,82,.15); color:var(--muted); border:1px solid #333; }
+.field-desc { font-size:.88rem; color:#737373; }
+.field-desc code { font-family:'Fira Code'; font-size:.78rem; color:var(--amber); background:#1a1a00; padding:.1em .4em; border-radius:3px; }
+
+/* TABBED EXAMPLES */
+.tabs { margin:2rem 0; }
+.tab-row { display:flex; gap:.4rem; flex-wrap:wrap; margin-bottom:1rem; border-bottom:1px solid var(--border); padding-bottom:.75rem; }
+.tab-btn {
+  font-family:'Fira Code'; font-size:.72rem;
+  padding:.35rem .9rem; border-radius:5px;
+  background:transparent; border:1px solid var(--border);
+  color:var(--muted); cursor:pointer; transition:.2s;
+}
+.tab-btn.on { background:var(--green2); border-color:var(--green); color:var(--green); }
+.tab-btn:hover:not(.on) { border-color:#444; color:var(--text); }
+.tab-pane { display:none; }
+.tab-pane.on { display:block; }
+
+/* TWO COL */
+.two { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin:1rem 0; }
+@media(max-width:660px){ .two { grid-template-columns:1fr; } }
+
+/* GOTCHA CARDS */
+.gotchas { display:grid; gap:.75rem; margin:1.5rem 0; }
+.gotcha {
+  background:var(--card); border:1px solid var(--border); border-radius:8px;
+  padding:1rem 1.25rem; display:grid; grid-template-columns:28px 1fr; gap:.75rem; align-items:start;
+}
+.gotcha-icon { font-size:1.1rem; }
+.gotcha h4 { font-size:.92rem; font-weight:700; margin-bottom:.25rem; }
+.gotcha p  { font-size:.85rem; color:var(--muted); margin:0; }
+
+/* TOOLS GRID */
+.tools { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:.75rem; margin:1.5rem 0; }
+.tool {
+  background:var(--card); border:1px solid var(--border); border-radius:8px;
+  padding:1.1rem; transition:.2s;
+}
+.tool:hover { border-color:var(--green); }
+.tool .tool-name { font-family:'Fira Code'; font-size:.82rem; color:var(--green); margin-bottom:.35rem; }
+.tool p { font-size:.83rem; color:var(--muted); margin:0; }
+
+/* QUICK REF */
+.qref { display:grid; gap:1px; background:var(--border); border-radius:10px; overflow:hidden; margin:1.5rem 0; }
+.qref-row { background:var(--card); padding:.75rem 1.2rem; display:flex; gap:1.5rem; align-items:center; font-size:.85rem; }
+.qref-row:hover { background:#161616; }
+.qref-key { font-family:'Fira Code'; color:var(--amber); min-width:180px; font-size:.78rem; }
+
+/* INDENT VISUALIZER */
+.indent-demo { background:#0a0a0a; border:1px solid var(--border); border-radius:10px; padding:1.5rem; margin:1.5rem 0; font-family:'Fira Code'; font-size:.82rem; line-height:2.2; }
+.indent-demo .i0 { color:var(--text); }
+.indent-demo .i1 { padding-left:2ch; color:var(--text); }
+.indent-demo .i2 { padding-left:4ch; color:var(--text); }
+.indent-demo .i3 { padding-left:6ch; color:var(--text); }
+.indent-line { display:flex; align-items:center; gap:1rem; }
+.indent-badge { font-family:'DM Sans'; font-size:.65rem; padding:.15rem .5rem; border-radius:4px; white-space:nowrap; min-width:80px; text-align:center; }
+.badge-0 { background:rgba(248,113,113,.15); color:var(--red); border:1px solid rgba(248,113,113,.2); }
+.badge-1 { background:rgba(251,191,36,.15); color:var(--amber); border:1px solid rgba(251,191,36,.2); }
+.badge-2 { background:rgba(96,165,250,.15); color:var(--blue); border:1px solid rgba(96,165,250,.2); }
+.badge-3 { background:rgba(192,132,252,.15); color:var(--purple); border:1px solid rgba(192,132,252,.2); }
+
+/* COMMAND LINE BLOCKS */
+.cmd { background:#050505; border:1px solid #1a1a1a; border-radius:8px; padding:.9rem 1.2rem; margin:1rem 0; font-family:'Fira Code'; font-size:.8rem; }
+.cmd .prompt { color:var(--green); margin-right:.75rem; }
+.cmd .command { color:var(--text); }
+.cmd .out { color:var(--muted); display:block; margin-top:.3rem; padding-left:1.5rem; }
+
+/* SCROLL REVEAL */
+.reveal { opacity:0; transform:translateY(20px); transition:.5s ease; }
+.reveal.in { opacity:1; transform:translateY(0); }
+
+/* FOOTER */
+footer { border-top:1px solid var(--border); padding:2rem; text-align:center; font-family:'Fira Code'; font-size:.72rem; color:var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="brand">kubectl<span>://</span>yaml-guide</div>
+  <div class="nav-items">
+    <a href="#basics">YAML Basics</a>
+    <a href="#structure">4 Fields</a>
+    <a href="#examples">Examples</a>
+    <a href="#gotchas">Gotchas</a>
+    <a href="#tools">Tools</a>
+    <a href="#cheatsheet">Cheatsheet</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-eyebrow">kubectl apply -f my-first-manifest.yaml<span class="blink">_</span></div>
+  <h1>Writing Kubernetes YAML<br>Without <em>Memorising</em> Anything</h1>
+  <p>YAML in Kubernetes looks scary because of how much there is. But 90% of what you write follows the same 4-field skeleton. Learn the pattern once — and you never need to memorise again.</p>
+
+  <div class="answer-box">
+    <div class="q"># The question everyone asks:</div>
+    <div class="a">
+      <strong>No, you don't memorise Kubernetes YAML.</strong> Nobody does — not even senior SREs at Google. You learn the <strong>structure and logic</strong>, then use tools (<code>kubectl explain</code>, VS Code extensions, <code>--dry-run</code>) to fill in the rest. This tutorial teaches you the pattern so everything clicks.
+    </div>
+  </div>
+</div>
+
+<!-- 1. YAML BASICS -->
+<section id="basics">
+<div class="container reveal">
+  <div class="sec-label">01 — Foundation</div>
+  <h2>YAML Basics First</h2>
+  <p>Kubernetes manifests are just YAML files. Before K8s-specific stuff, you need to understand how YAML itself works — it's simpler than it looks.</p>
+
+  <h3>Rule 1 — Indentation Is Everything</h3>
+  <p>YAML uses <strong>spaces (NOT tabs)</strong> to show nesting. Parent → child is shown by indenting the child by 2 spaces. Get this wrong and your manifest breaks. It's the #1 source of confusion.</p>
+
+  <div class="indent-demo">
+    <div class="indent-line"><div class="i0"><span class="y-key">spec</span>:</div><span class="indent-badge badge-0">Level 0</span></div>
+    <div class="indent-line"><div class="i1"><span class="y-key">  containers</span>:</div><span class="indent-badge badge-1">Level 1 — child of spec</span></div>
+    <div class="indent-line"><div class="i2"><span class="y-key">  - name</span>: <span class="y-str">my-app</span></div><span class="indent-badge badge-2">Level 2 — list item</span></div>
+    <div class="indent-line"><div class="i3"><span class="y-key">    image</span>: <span class="y-str">nginx:1.25</span></div><span class="indent-badge badge-3">Level 3 — child of list item</span></div>
+  </div>
+
+  <div class="note note-red">
+    <span class="note-label">⚠ CRITICAL RULE</span>
+    <p>Always use <strong>2 spaces</strong> per indent level. Never use Tab. Most editors let you configure Tab to insert 2 spaces — do that immediately. Mixing tabs and spaces will silently break your YAML.</p>
+  </div>
+
+  <h3>Rule 2 — Data Types</h3>
+  <div class="two">
+    <div>
+      <div class="yaml-block">
+        <div class="yaml-header"><span class="file-name">strings.yaml</span></div>
+        <div class="yaml-body"><pre>
+<span class="y-key">name</span>: <span class="y-str">my-app</span>          <span class="y-com"># plain string</span>
+<span class="y-key">image</span>: <span class="y-str">"nginx:1.25"</span>    <span class="y-com"># quoted string</span>
+<span class="y-key">message</span>: |             <span class="y-com"># multi-line string</span>
+  <span class="y-str">line one</span>
+  <span class="y-str">line two</span>
+</pre></div>
+      </div>
+    </div>
+    <div>
+      <div class="yaml-block">
+        <div class="yaml-header"><span class="file-name">numbers-bools.yaml</span></div>
+        <div class="yaml-body"><pre>
+<span class="y-key">replicas</span>: <span class="y-num">3</span>          <span class="y-com"># integer</span>
+<span class="y-key">port</span>: <span class="y-num">8080</span>           <span class="y-com"># integer</span>
+<span class="y-key">enabled</span>: <span class="y-bool">true</span>        <span class="y-com"># boolean</span>
+<span class="y-key">readOnly</span>: <span class="y-bool">false</span>      <span class="y-com"># boolean</span>
+</pre></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Rule 3 — Lists vs Maps</h3>
+  <div class="two">
+    <div>
+      <div class="yaml-block">
+        <div class="yaml-header"><span class="file-name">list.yaml — starts with dash</span></div>
+        <div class="yaml-body"><pre>
+<span class="y-key">ports</span>:
+  - <span class="y-num">80</span>
+  - <span class="y-num">443</span>
+  - <span class="y-num">8080</span>
+
+<span class="y-key">containers</span>:       <span class="y-com"># list of objects</span>
+  - <span class="y-key">name</span>: <span class="y-str">app</span>
+    <span class="y-key">image</span>: <span class="y-str">nginx</span>
+  - <span class="y-key">name</span>: <span class="y-str">sidecar</span>
+    <span class="y-key">image</span>: <span class="y-str">fluentd</span>
+</pre></div>
+      </div>
+    </div>
+    <div>
+      <div class="yaml-block">
+        <div class="yaml-header"><span class="file-name">map.yaml — key: value pairs</span></div>
+        <div class="yaml-body"><pre>
+<span class="y-key">labels</span>:             <span class="y-com"># map = nested key:value</span>
+  <span class="y-key">app</span>: <span class="y-str">my-app</span>
+  <span class="y-key">env</span>: <span class="y-str">production</span>
+  <span class="y-key">version</span>: <span class="y-str">v2</span>
+
+<span class="y-key">annotations</span>:        <span class="y-com"># also a map</span>
+  <span class="y-key">team</span>: <span class="y-str">backend</span>
+  <span class="y-key">owner</span>: <span class="y-str">abdullah</span>
+</pre></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note note-amber">
+    <span class="note-label">💡 TIP — Quoted strings</span>
+    <p>If a string contains <code>:</code>, <code>{</code>, <code>}</code>, <code>[</code>, <code>]</code>, or starts with a number, wrap it in quotes. Example: <code>version: "1.25"</code> — otherwise YAML might misinterpret it.</p>
+  </div>
+</div>
+</section>
+
+<!-- 2. THE 4 FIELDS -->
+<section id="structure">
+<div class="container reveal">
+  <div class="sec-label">02 — The Universal Skeleton</div>
+  <h2>Every Manifest Has These 4 Fields</h2>
+  <p>No matter what Kubernetes object you're creating — Pod, Deployment, Service, Job, whatever — the <strong>top-level structure is always the same 4 fields</strong>. Learn this once and you know the skeleton of every K8s YAML ever written.</p>
+
+  <div class="yaml-block">
+    <div class="yaml-header"><span class="file-name">universal-skeleton.yaml</span><span>hover the underlined parts ↓</span></div>
+    <div class="yaml-body"><pre>
+<span class="ann ann-imp"><span class="y-imp">apiVersion</span>: <span class="y-str">apps/v1</span>
+  <div class="ann-tip">📌 <strong>API Group / Version</strong><br>Tells K8s which API to use. Different objects live in different API groups. apps/v1 is for Deployments/DaemonSets. v1 (no prefix) is for Pods/Services. batch/v1 is for Jobs. You look this up — nobody memorises it.</div></span>
+
+<span class="ann ann-imp"><span class="y-imp">kind</span>: <span class="y-str">Deployment</span>
+  <div class="ann-tip">📌 <strong>Object Type</strong><br>What you're creating. Deployment, Pod, Service, ConfigMap, Secret, Job, CronJob, Ingress, PersistentVolumeClaim, Namespace, etc. Capital letter always.</div></span>
+
+<span class="ann ann-key"><span class="y-key">metadata</span>:
+  <span class="y-key">name</span>: <span class="y-str">my-app</span>
+  <span class="y-key">namespace</span>: <span class="y-str">production</span>
+  <span class="y-key">labels</span>:
+    <span class="y-key">app</span>: <span class="y-str">my-app</span>
+  <div class="ann-tip">📌 <strong>Metadata</strong><br>Identity of the object. name is required — it's how kubectl and other resources refer to this object. namespace is optional (defaults to "default"). labels are key-value tags used for selection — VERY important.</div></span>
+
+<span class="ann ann-key"><span class="y-key">spec</span>:
+  <span class="y-com">  # This is where everything interesting lives.</span>
+  <span class="y-com">  # Contents depend on the 'kind' above.</span>
+  <span class="y-com">  # A Pod spec is different from a Service spec.</span>
+  <div class="ann-tip">📌 <strong>Specification</strong><br>The desired state you want Kubernetes to achieve. This is the bulk of the YAML and varies by kind. THIS is the part that looks different between object types. Everything else above is always the same.</div></span>
+</pre></div>
+  </div>
+
+  <div class="fields">
+    <div class="field-row" style="background:#111;border-bottom:1px solid var(--border);">
+      <span style="font-family:'Fira Code';font-size:.72rem;color:var(--muted);">Field</span>
+      <span style="font-family:'Fira Code';font-size:.72rem;color:var(--muted);">Required?</span>
+      <span style="font-family:'Fira Code';font-size:.72rem;color:var(--muted);">What it does</span>
+    </div>
+    <div class="field-row">
+      <span class="field-name">apiVersion</span>
+      <span class="field-req req-yes">required</span>
+      <div class="field-desc">Which API group/version handles this object. Common ones: <code>v1</code> · <code>apps/v1</code> · <code>batch/v1</code> · <code>networking.k8s.io/v1</code></div>
+    </div>
+    <div class="field-row">
+      <span class="field-name">kind</span>
+      <span class="field-req req-yes">required</span>
+      <div class="field-desc">The object type. <code>Pod</code> · <code>Deployment</code> · <code>Service</code> · <code>Job</code> · <code>ConfigMap</code> · <code>Secret</code> · <code>Ingress</code> · <code>PersistentVolumeClaim</code></div>
+    </div>
+    <div class="field-row">
+      <span class="field-name">metadata.name</span>
+      <span class="field-req req-yes">required</span>
+      <div class="field-desc">Unique name for this object within its namespace. Lowercase, hyphens OK, no spaces. e.g. <code>user-service</code> · <code>mysql-statefulset</code></div>
+    </div>
+    <div class="field-row">
+      <span class="field-name">metadata.namespace</span>
+      <span class="field-req req-no">optional</span>
+      <div class="field-desc">Which namespace to put this in. Defaults to <code>default</code> if omitted. You know namespaces are like office floors — use them to separate environments.</div>
+    </div>
+    <div class="field-row">
+      <span class="field-name">metadata.labels</span>
+      <span class="field-req req-no">optional*</span>
+      <div class="field-desc">Key-value tags. <em>Technically optional but practically required</em> — Services use labels to find which Pods to route to. Always add <code>app: your-app-name</code> at minimum.</div>
+    </div>
+    <div class="field-row">
+      <span class="field-name">spec</span>
+      <span class="field-req req-yes">required</span>
+      <div class="field-desc">The desired state. Contents depend on <code>kind</code>. This is the part that varies — and the part <code>kubectl explain</code> helps you with.</div>
+    </div>
+  </div>
+
+  <div class="note note-blue">
+    <span class="note-label">💡 KEY INSIGHT</span>
+    <p>The first 3 fields (<code>apiVersion</code>, <code>kind</code>, <code>metadata</code>) are <strong>always identical in structure</strong> regardless of what you're creating. Only <code>spec</code> changes between object types. Once you know the spec for a Deployment, you know 75% of any Deployment YAML you'll ever write.</p>
+  </div>
+</div>
+</section>
+
+<!-- 3. ANNOTATED EXAMPLES -->
+<section id="examples">
+<div class="container reveal">
+  <div class="sec-label">03 — Real Examples, Fully Annotated</div>
+  <h2>The 6 Objects You'll Write Most</h2>
+  <p>Click each tab. Every field is explained so you understand what it does — not just what to type.</p>
+
+  <div class="tabs">
+    <div class="tab-row">
+      <button class="tab-btn on" onclick="switchTab('pod',this)">Pod</button>
+      <button class="tab-btn" onclick="switchTab('deployment',this)">Deployment</button>
+      <button class="tab-btn" onclick="switchTab('service',this)">Service</button>
+      <button class="tab-btn" onclick="switchTab('configmap',this)">ConfigMap</button>
+      <button class="tab-btn" onclick="switchTab('secret',this)">Secret</button>
+      <button class="tab-btn" onclick="switchTab('pvc',this)">PVC</button>
+    </div>
+
+    <!-- POD -->
+    <div id="tab-pod" class="tab-pane on">
+      <p style="color:var(--muted);font-size:.88rem;">A Pod is the smallest unit in K8s — one or more containers running together. You rarely create Pods directly (Deployments do it for you), but understanding Pod spec is essential because <strong>Deployment/StatefulSet/Job spec all contain a Pod template inside them.</strong></p>
+      <div class="yaml-block">
+        <div class="yaml-header"><span class="file-name">pod.yaml</span><span style="color:var(--muted)">hover underlined fields</span></div>
+        <div class="yaml-body"><pre>
+<span class="y-key">apiVersion</span>: <span class="y-str">v1</span>                     <span class="y-com"># Pods are in the core v1 group</span>
+<span class="y-key">kind</span>: <span class="y-str">Pod</span>
+<span class="y-key">metadata</span>:
+  <span class="y-key">name</span>: <span class="y-str">my-pod</span>
+  <span class="y-key">labels</span>:
+    <span class="y-key">app</span>: <span class="y-str">my-app</span>                    <span class="y-com"># Services find this pod using this label</span>
+<span class="y-key">spec</span>:
+  <span class="ann ann-key"><span class="y-key">containers</span>:                    <span class="y-com"># LIST of containers in this pod</span>
+  <div class="ann-tip">📌 <strong>containers</strong> is a list (notice the dash below). You can have multiple containers per pod — main app + sidecar. Each gets the same IP address and can talk to each other on localhost.</div></span>
+  - <span class="y-key">name</span>: <span class="y-str">app-container</span>          <span class="y-com"># name of this specific container</span>
+    <span class="ann ann-amber"><span class="y-key">image</span>: <span class="y-str">nginx:1.25</span>
+    <div class="ann-tip">📌 <strong>image</strong> — Docker image to run. Format: name:tag. Always pin a specific tag (1.25) instead of :latest in production. :latest is non-deterministic — different machines may pull different versions.</div></span>
+    <span class="ann ann-key"><span class="y-key">ports</span>:
+    - <span class="y-key">containerPort</span>: <span class="y-num">80</span>          <span class="y-com"># port the app listens on INSIDE container</span>
+    <div class="ann-tip">📌 <strong>containerPort</strong> is purely documentation — it doesn't actually open the port. The port is already open because the app inside listens on it. This just tells humans/tools which port to expect.</div></span>
+    <span class="ann ann-key"><span class="y-key">resources</span>:
+      <span class="y-key">requests</span>:                    <span class="y-com"># minimum guaranteed resources</span>
+        <span class="y-key">cpu</span>: <span class="y-str">"250m"</span>               <span class="y-com"># 250 millicores = 0.25 CPU core</span>
+        <span class="y-key">memory</span>: <span class="y-str">"128Mi"</span>           <span class="y-com"># 128 mebibytes RAM</span>
+      <span class="y-key">limits</span>:                      <span class="y-com"># maximum allowed resources</span>
+        <span class="y-key">cpu</span>: <span class="y-str">"500m"</span>
+        <span class="y-key">memory</span>: <span class="y-str">"256Mi"</span>           <span class="y-com"># exceed this = OOMKilled</span>
+    <div class="ann-tip">📌 <strong>resources</strong> — requests is what the scheduler uses to place the pod (VPA right-sizes this). limits is the hard ceiling. Exceed memory limit → pod is killed (OOMKilled). Exceed CPU limit → pod is throttled (not killed). Always set both.</div></span>
+    <span class="y-key">env</span>:                             <span class="y-com"># environment variables</span>
+    - <span class="y-key">name</span>: <span class="y-str">DB_HOST</span>
+      <span class="y-key">value</span>: <span class="y-str">"mysql-service"</span>       <span class="y-com"># hardcoded value</span>
+    - <span class="y-key">name</span>: <span class="y-str">DB_PASSWORD</span>
+      <span class="y-key">valueFrom</span>:
+        <span class="y-key">secretKeyRef</span>:              <span class="y-com"># pull from a Secret instead</span>
+          <span class="y-key">name</span>: <span class="y-str">db-secret</span>
+          <span class="y-key">key</span>: <span class="y-str">password</span>
+</pre></div>
+      </div>
+    </div>
+
+    <!-- DEPLOYMENT -->
+    <div id="tab-deployment" class="tab-pane">
+      <p style="color:var(--muted);font-size:.88rem;">This is what you use for stateless apps in production. A Deployment manages a set of identical Pod replicas and handles rollouts/rollbacks. It wraps a Pod template inside its spec.</p>
+      <div class="yaml-block">
+        <div class="yaml-header"><span class="file-name">deployment.yaml</span></div>
+        <div class="yaml-body"><pre>
+<span class="y-key">apiVersion</span>: <span class="y-str">apps/v1</span>              <span class="y-com"># Deployments are in apps group</span>
+<span class="y-key">kind</span>: <span class="y-str">Deployment</span>
+<span class="y-key">metadata</span>:
+  <span class="y-key">name</span>: <span class="y-str">user-service</span>
+  <span class="y-key">namespace</span>: <span class="y-str">production</span>
+  <span class="y-key">labels</span>:
+    <span class="y-key">app</span>: <span class="y-str">user-service</span>
+<span class="y-key">spec</span>:
+  <span class="ann ann-key"><span class="y-key">replicas</span>: <span class="y-num">3</span>
+  <div class="ann-tip">📌 <strong>replicas</strong> — how many identical Pod copies to run. HPA will override this automatically when it scales. Start with a small number like 2-3.</div></span>
+  <span class="ann ann-imp"><span class="y-key">selector</span>:
+    <span class="y-key">matchLabels</span>:
+      <span class="y-key">app</span>: <span class="y-str">user-service</span>
+  <div class="ann-tip">📌 <strong>selector</strong> — tells the Deployment which Pods it owns. Must match the labels in the template below. If these don't match, the Deployment won't know which pods are "its" pods. This is the most common source of bugs for beginners.</div></span>
+  <span class="ann ann-key"><span class="y-key">template</span>:                        <span class="y-com"># ← THIS IS THE POD TEMPLATE</span>
+    <span class="y-key">metadata</span>:
+      <span class="y-key">labels</span>:
+        <span class="y-key">app</span>: <span class="y-str">user-service</span>         <span class="y-com"># must match selector.matchLabels above</span>
+    <span class="y-key">spec</span>:                          <span class="y-com"># ← same as Pod spec from here on</span>
+      <span class="y-key">containers</span>:
+      - <span class="y-key">name</span>: <span class="y-str">user-service</span>
+        <span class="y-key">image</span>: <span class="y-str">my-registry/user-service:v2.1</span>
+        <span class="y-key">ports</span>:
+        - <span class="y-key">containerPort</span>: <span class="y-num">8080</span>
+        <span class="y-key">resources</span>:
+          <span class="y-key">requests</span>:
+            <span class="y-key">cpu</span>: <span class="y-str">"250m"</span>
+            <span class="y-key">memory</span>: <span class="y-str">"256Mi"</span>
+          <span class="y-key">limits</span>:
+            <span class="y-key">cpu</span>: <span class="y-str">"500m"</span>
+            <span class="y-key">memory</span>: <span class="y-str">"512Mi"</span>
+  <div class="ann-tip">📌 <strong>template</strong> — the Pod blueprint. Every pod the Deployment creates will look like this. Notice it has its own metadata and spec — it IS a Pod definition, just nested inside the Deployment.</div></span>
+  <span class="y-key">strategy</span>:
+    <span class="y-key">type</span>: <span class="y-str">RollingUpdate</span>          <span class="y-com"># update pods gradually, not all at once</span>
+    <span class="y-key">rollingUpdate</span>:
+      <span class="y-key">maxUnavailable</span>: <span class="y-num">1</span>          <span class="y-com"># max pods down at any time during update</span>
+      <span class="y-key">maxSurge</span>: <span class="y-num">1</span>               <span class="y-com"># max extra pods during update</span>
+</pre></div>
+      </div>
+    </div>
+
+    <!-- SERVICE -->
+    <div id="tab-service" class="tab-pane">
+      <p style="color:var(--muted);font-size:.88rem;">You know Services deeply from the previous tutorial. Here's how to write them. The key field is <code>selector</code> — it must match the pod labels exactly.</p>
+      <div class="yaml-block">
+        <div class="yaml-header"><span class="file-name">service.yaml</span></div>
+        <div class="yaml-body"><pre>
+<span class="y-key">apiVersion</span>: <span class="y-str">v1</span>                   <span class="y-com"># Services are in core v1 group</span>
+<span class="y-key">kind</span>: <span class="y-str">Service</span>
+<span class="y-key">metadata</span>:
+  <span class="y-key">name</span>: <span class="y-str">user-service</span>
+  <span class="y-key">namespace</span>: <span class="y-str">production</span>
+<span class="y-key">spec</span>:
+  <span class="ann ann-imp"><span class="y-key">type</span>: <span class="y-str">ClusterIP</span>                <span class="y-com"># ClusterIP | NodePort | LoadBalancer</span>
+  <div class="ann-tip">📌 <strong>type</strong> — ClusterIP (internal DIP, default), NodePort (hole on every node), LoadBalancer (VIP via cloud). You know all of these from the Services tutorial.</div></span>
+  <span class="ann ann-imp"><span class="y-key">selector</span>:
+    <span class="y-key">app</span>: <span class="y-str">user-service</span>           <span class="y-com"># routes to pods with THIS label</span>
+  <div class="ann-tip">📌 <strong>selector</strong> — this is how the Service finds its pods. It looks for ALL running pods that have matching labels and automatically routes traffic to them. Pod comes up = added to pool. Pod dies = removed. This is the magic.</div></span>
+  <span class="y-key">ports</span>:
+  - <span class="ann ann-key"><span class="y-key">port</span>: <span class="y-num">80</span>
+    <div class="ann-tip">📌 <strong>port</strong> — the port the Service listens on. This is what callers use. "Call user-service on port 80."</div></span>
+    <span class="ann ann-key"><span class="y-key">targetPort</span>: <span class="y-num">8080</span>
+    <div class="ann-tip">📌 <strong>targetPort</strong> — the port the pod actually listens on. Traffic hits Service:80 → forwarded to Pod:8080. These can be different — common pattern is expose on 80, app runs on 8080.</div></span>
+    <span class="y-key">protocol</span>: <span class="y-str">TCP</span>               <span class="y-com"># TCP is default, can be UDP</span>
+
+<span class="y-com">---                               # Three dashes = new document in same file</span>
+<span class="y-com"># LoadBalancer example:</span>
+<span class="y-key">apiVersion</span>: <span class="y-str">v1</span>
+<span class="y-key">kind</span>: <span class="y-str">Service</span>
+<span class="y-key">metadata</span>:
+  <span class="y-key">name</span>: <span class="y-str">api-gateway</span>
+<span class="y-key">spec</span>:
+  <span class="y-key">type</span>: <span class="y-str">LoadBalancer</span>             <span class="y-com"># provisions cloud LB = your VIP</span>
+  <span class="y-key">selector</span>:
+    <span class="y-key">app</span>: <span class="y-str">api-gateway</span>
+  <span class="y-key">ports</span>:
+  - <span class="y-key">port</span>: <span class="y-num">443</span>
+    <span class="y-key">targetPort</span>: <span class="y-num">8443</span>
+</pre></div>
+      </div>
+    </div>
+
+    <!-- CONFIGMAP -->
+    <div id="tab-configmap" class="tab-pane">
+      <p style="color:var(--muted);font-size:.88rem;">ConfigMaps store non-sensitive configuration that you want to inject into pods — database hostnames, feature flags, config files. Keeps config out of your Docker image.</p>
+      <div class="yaml-block">
+        <div class="yaml-header"><span class="file-name">configmap.yaml</span></div>
+        <div class="yaml-body"><pre>
+<span class="y-key">apiVersion</span>: <span class="y-str">v1</span>
+<span class="y-key">kind</span>: <span class="y-str">ConfigMap</span>
+<span class="y-key">metadata</span>:
+  <span class="y-key">name</span>: <span class="y-str">app-config</span>
+<span class="ann ann-key"><span class="y-key">data</span>:                              <span class="y-com"># ConfigMap uses 'data' not 'spec'</span>
+  <span class="y-key">DB_HOST</span>: <span class="y-str">"mysql-service"</span>
+  <span class="y-key">DB_PORT</span>: <span class="y-str">"3306"</span>                 <span class="y-com"># numbers are strings here</span>
+  <span class="y-key">APP_ENV</span>: <span class="y-str">"production"</span>
+  <span class="y-key">MAX_CONNECTIONS</span>: <span class="y-str">"100"</span>
+  <span class="y-key">config.json</span>: |                   <span class="y-com"># can store entire files!</span>
+    {
+      "logLevel": "info",
+      "timeout": 30
+    }
+<div class="ann-tip">📌 <strong>data</strong> — ConfigMap uses data instead of spec. Each key becomes an environment variable or a file, depending on how you mount it in the pod.</div></span>
+
+<span class="y-com">---</span>
+<span class="y-com"># Using ConfigMap in a Pod:</span>
+<span class="y-key">apiVersion</span>: <span class="y-str">v1</span>
+<span class="y-key">kind</span>: <span class="y-str">Pod</span>
+<span class="y-key">metadata</span>:
+  <span class="y-key">name</span>: <span class="y-str">app</span>
+<span class="y-key">spec</span>:
+  <span class="y-key">containers</span>:
+  - <span class="y-key">name</span>: <span class="y-str">app</span>
+    <span class="y-key">image</span>: <span class="y-str">my-app:v1</span>
+    <span class="y-com">    # Method 1: inject all keys as env vars</span>
+    <span class="y-key">envFrom</span>:
+    - <span class="y-key">configMapRef</span>:
+        <span class="y-key">name</span>: <span class="y-str">app-config</span>
+    <span class="y-com">    # Method 2: mount config.json as a file</span>
+    <span class="y-key">volumeMounts</span>:
+    - <span class="y-key">name</span>: <span class="y-str">config-vol</span>
+      <span class="y-key">mountPath</span>: <span class="y-str">/etc/config</span>      <span class="y-com"># accessible at /etc/config/config.json</span>
+  <span class="y-key">volumes</span>:
+  - <span class="y-key">name</span>: <span class="y-str">config-vol</span>
+    <span class="y-key">configMap</span>:
+      <span class="y-key">name</span>: <span class="y-str">app-config</span>
+</pre></div>
+      </div>
+    </div>
+
+    <!-- SECRET -->
+    <div id="tab-secret" class="tab-pane">
+      <p style="color:var(--muted);font-size:.88rem;">Secrets are like ConfigMaps but for sensitive data — passwords, tokens, TLS certs. Values must be <strong>base64 encoded</strong> (not encrypted — just encoded). For real security, use Vault or Sealed Secrets on top.</p>
+      <div class="yaml-block">
+        <div class="yaml-header"><span class="file-name">secret.yaml</span></div>
+        <div class="yaml-body"><pre>
+<span class="y-key">apiVersion</span>: <span class="y-str">v1</span>
+<span class="y-key">kind</span>: <span class="y-str">Secret</span>
+<span class="y-key">metadata</span>:
+  <span class="y-key">name</span>: <span class="y-str">db-secret</span>
+<span class="ann ann-imp"><span class="y-key">type</span>: <span class="y-str">Opaque</span>                     <span class="y-com"># Opaque = generic secret</span>
+<div class="ann-tip">📌 <strong>type</strong> — Opaque means "generic, I'll define the structure." Other types: kubernetes.io/tls (for TLS certs), kubernetes.io/dockerconfigjson (for registry auth). Most of the time you'll use Opaque.</div></span>
+<span class="ann ann-imp"><span class="y-key">data</span>:                              <span class="y-com"># values MUST be base64 encoded</span>
+  <span class="y-key">password</span>: <span class="y-str">cGFzc3dvcmQxMjM=</span>       <span class="y-com"># base64 of "password123"</span>
+  <span class="y-key">username</span>: <span class="y-str">YWJkdWxsYWg=</span>          <span class="y-com"># base64 of "abdullah"</span>
+<div class="ann-tip">📌 Values in Secret.data must be base64 encoded. To encode: echo -n "mypassword" | base64. To decode: echo "bXlwYXNzd29yZA==" | base64 -d. Use stringData instead to write plain text — K8s will encode it for you.</div></span>
+
+<span class="y-com">---</span>
+<span class="y-com"># OR use stringData to skip manual base64:</span>
+<span class="y-key">apiVersion</span>: <span class="y-str">v1</span>
+<span class="y-key">kind</span>: <span class="y-str">Secret</span>
+<span class="y-key">metadata</span>:
+  <span class="y-key">name</span>: <span class="y-str">db-secret</span>
+<span class="y-key">stringData</span>:                        <span class="y-com"># plain text — K8s encodes it</span>
+  <span class="y-key">password</span>: <span class="y-str">"password123"</span>         <span class="y-com"># ← much easier</span>
+  <span class="y-key">username</span>: <span class="y-str">"abdullah"</span>
+
+<span class="y-com">---</span>
+<span class="y-com"># Pulling from Secret in a Pod:</span>
+<span class="y-key">env</span>:
+- <span class="y-key">name</span>: <span class="y-str">DB_PASSWORD</span>
+  <span class="y-key">valueFrom</span>:
+    <span class="y-key">secretKeyRef</span>:
+      <span class="y-key">name</span>: <span class="y-str">db-secret</span>              <span class="y-com"># the Secret's metadata.name</span>
+      <span class="y-key">key</span>: <span class="y-str">password</span>               <span class="y-com"># the key inside the Secret</span>
+</pre></div>
+      </div>
+    </div>
+
+    <!-- PVC -->
+    <div id="tab-pvc" class="tab-pane">
+      <p style="color:var(--muted);font-size:.88rem;">PVC = your storage booking request. You know the PV/PVC/StorageClass model from the persistence tutorial. Here's how you write it.</p>
+      <div class="yaml-block">
+        <div class="yaml-header"><span class="file-name">pvc.yaml</span></div>
+        <div class="yaml-body"><pre>
+<span class="y-key">apiVersion</span>: <span class="y-str">v1</span>
+<span class="y-key">kind</span>: <span class="y-str">PersistentVolumeClaim</span>
+<span class="y-key">metadata</span>:
+  <span class="y-key">name</span>: <span class="y-str">mysql-storage</span>
+<span class="y-key">spec</span>:
+  <span class="ann ann-key"><span class="y-key">accessModes</span>:
+  - <span class="y-str">ReadWriteOnce</span>               <span class="y-com"># RWO: one node. RWX: many nodes.</span>
+  <div class="ann-tip">📌 ReadWriteOnce (RWO) — only one node can mount this as read-write. That's fine for a single database. ReadWriteMany (RWX) needed if multiple pods on different nodes need to write — requires NFS or EFS.</div></span>
+  <span class="ann ann-key"><span class="y-key">storageClassName</span>: <span class="y-str">fast-ssd</span>     <span class="y-com"># which StorageClass to use</span>
+  <div class="ann-tip">📌 storageClassName matches a StorageClass that your cluster has. It tells K8s "create storage of this type." Your cloud provider usually sets up default classes — run kubectl get storageclasses to see what's available.</div></span>
+  <span class="y-key">resources</span>:
+    <span class="y-key">requests</span>:
+      <span class="ann ann-amber"><span class="y-key">storage</span>: <span class="y-str">10Gi</span>               <span class="y-com"># I need at least 10 gibibytes</span>
+      <div class="ann-tip">📌 10Gi = 10 gibibytes (1024-based). 10G = 10 gigabytes (1000-based). Use Gi for K8s to be precise. K8s will find a PV with storage ≥ 10Gi and bind it.</div></span>
+
+<span class="y-com">---</span>
+<span class="y-com"># Mounting PVC in a Pod:</span>
+<span class="y-key">apiVersion</span>: <span class="y-str">v1</span>
+<span class="y-key">kind</span>: <span class="y-str">Pod</span>
+<span class="y-key">metadata</span>:
+  <span class="y-key">name</span>: <span class="y-str">mysql</span>
+<span class="y-key">spec</span>:
+  <span class="y-key">containers</span>:
+  - <span class="y-key">name</span>: <span class="y-str">mysql</span>
+    <span class="y-key">image</span>: <span class="y-str">mysql:8.0</span>
+    <span class="y-key">volumeMounts</span>:
+    - <span class="y-key">name</span>: <span class="y-str">data</span>
+      <span class="y-key">mountPath</span>: <span class="y-str">/var/lib/mysql</span>   <span class="y-com"># where in container to mount</span>
+  <span class="y-key">volumes</span>:
+  - <span class="y-key">name</span>: <span class="y-str">data</span>
+    <span class="y-key">persistentVolumeClaim</span>:
+      <span class="y-key">claimName</span>: <span class="y-str">mysql-storage</span>    <span class="y-com"># reference the PVC by name</span>
+</pre></div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- 4. GOTCHAS -->
+<section id="gotchas">
+<div class="container reveal">
+  <div class="sec-label">04 — Common Mistakes</div>
+  <h2>Gotchas That Will Catch You</h2>
+  <p>These mistakes are nearly universal when people start writing K8s YAML. Know them now and save yourself hours of debugging.</p>
+
+  <div class="gotchas">
+    <div class="gotcha">
+      <div class="gotcha-icon">🎯</div>
+      <div>
+        <h4 style="color:var(--red);">Selector ↔ Label mismatch (most common bug)</h4>
+        <p>A Deployment's <code>selector.matchLabels</code> must exactly match the <code>template.metadata.labels</code>. A Service's <code>selector</code> must exactly match pod labels. One typo = service routes to nothing, pods get no traffic. Always cross-check these.</p>
+      </div>
+    </div>
+    <div class="gotcha">
+      <div class="gotcha-icon">📐</div>
+      <div>
+        <h4 style="color:var(--red);">Wrong indentation level</h4>
+        <p>The dash in a list item (<code>-</code>) and the properties under it must align correctly. Properties of a list item are indented 2 spaces from the dash. Missing or extra spaces silently break the structure.</p>
+      </div>
+    </div>
+    <div class="gotcha">
+      <div class="gotcha-icon">🔢</div>
+      <div>
+        <h4 style="color:var(--amber);">Forgetting quotes on numeric strings</h4>
+        <p>If a field expects a string but you write a number, YAML parses it as an integer and K8s rejects it. Example: <code>port: "3306"</code> — if the field expects a string, quote it. Use <code>kubectl explain</code> to check the expected type.</p>
+      </div>
+    </div>
+    <div class="gotcha">
+      <div class="gotcha-icon">📦</div>
+      <div>
+        <h4 style="color:var(--amber);">Using :latest image tag in production</h4>
+        <p>Always pin your image tag: <code>image: my-app:v2.1.3</code>. Using <code>:latest</code> means different nodes can pull different versions, rollbacks become unpredictable, and pods restart with unexpected code changes.</p>
+      </div>
+    </div>
+    <div class="gotcha">
+      <div class="gotcha-icon">🔑</div>
+      <div>
+        <h4 style="color:var(--amber);">Forgetting namespace context</h4>
+        <p>A Service in namespace <code>production</code> can only be reached from other resources in <code>production</code> by short name. Cross-namespace calls need the full DNS: <code>service-name.namespace.svc.cluster.local</code>.</p>
+      </div>
+    </div>
+    <div class="gotcha">
+      <div class="gotcha-icon">💾</div>
+      <div>
+        <h4 style="color:var(--muted);">Mixing tabs and spaces</h4>
+        <p>YAML strictly forbids tabs for indentation. Your editor may silently insert tabs. Configure your editor to use 2 spaces when Tab is pressed. VSCode: Settings → "Editor: Tab Size" = 2 and "Editor: Insert Spaces" = true.</p>
+      </div>
+    </div>
+    <div class="gotcha">
+      <div class="gotcha-icon">🔐</div>
+      <div>
+        <h4 style="color:var(--muted);">Putting secrets in ConfigMaps</h4>
+        <p>ConfigMaps are not encrypted. Never put passwords, tokens, or private keys in a ConfigMap. Always use <code>kind: Secret</code>. Even better, use external secret management (HashiCorp Vault, AWS Secrets Manager).</p>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- 5. TOOLS -->
+<section id="tools">
+<div class="container reveal">
+  <div class="sec-label">05 — You Don't Need To Memorise</div>
+  <h2>Tools That Do The Work For You</h2>
+  <p>Here's the real answer to your question. Real engineers use these daily — not their memory.</p>
+
+  <h3>kubectl explain — Your Built-in Docs</h3>
+  <p>This is your most powerful tool. It shows you every field of every object, their types, and descriptions — right in the terminal. You never need to google what a field is called.</p>
+
+  <div class="cmd">
+    <span class="prompt">$</span><span class="command">kubectl explain deployment</span>
+    <span class="out">KIND: Deployment / VERSION: apps/v1 / DESCRIPTION: A Deployment provides declarative updates for Pods...</span>
+  </div>
+  <div class="cmd">
+    <span class="prompt">$</span><span class="command">kubectl explain deployment.spec</span>
+    <span class="out">FIELDS: replicas &lt;integer&gt; · selector &lt;Object&gt; -required- · template &lt;Object&gt; -required- · strategy &lt;Object&gt;...</span>
+  </div>
+  <div class="cmd">
+    <span class="prompt">$</span><span class="command">kubectl explain deployment.spec.template.spec.containers</span>
+    <span class="out">FIELDS: name &lt;string&gt; -required- · image &lt;string&gt; · ports &lt;[]Object&gt; · resources &lt;Object&gt; · env &lt;[]Object&gt;...</span>
+  </div>
+  <div class="cmd">
+    <span class="prompt">$</span><span class="command">kubectl explain pod.spec.containers.resources --recursive</span>
+    <span class="out">Shows entire tree of fields under resources</span>
+  </div>
+
+  <h3 style="margin-top:2rem;">--dry-run + -o yaml — Generate YAML Automatically</h3>
+  <p>Instead of writing YAML from scratch, let kubectl generate the skeleton and edit it:</p>
+
+  <div class="cmd">
+    <span class="prompt">$</span><span class="command">kubectl create deployment my-app --image=nginx:1.25 --replicas=3 --dry-run=client -o yaml</span>
+    <span class="out">Outputs complete Deployment YAML → redirect to file and edit</span>
+  </div>
+  <div class="cmd">
+    <span class="prompt">$</span><span class="command">kubectl create deployment my-app --image=nginx --dry-run=client -o yaml > my-deployment.yaml</span>
+    <span class="out">Saves the generated YAML to a file — then edit as needed</span>
+  </div>
+  <div class="cmd">
+    <span class="prompt">$</span><span class="command">kubectl create service clusterip my-svc --tcp=80:8080 --dry-run=client -o yaml</span>
+    <span class="out">Generates a ClusterIP Service YAML</span>
+  </div>
+
+  <h3 style="margin-top:2rem;">More Essential Tools</h3>
+  <div class="tools">
+    <div class="tool">
+      <div class="tool-name">VSCode + YAML Extension</div>
+      <p>Install "YAML" by RedHat. Gives you autocomplete, inline docs, and error highlighting directly in your editor as you type.</p>
+    </div>
+    <div class="tool">
+      <div class="tool-name">kubectl apply --dry-run</div>
+      <p>Validate your YAML against the live API server without actually creating anything. Catches typos and schema errors.</p>
+    </div>
+    <div class="tool">
+      <div class="tool-name">kubectl diff -f</div>
+      <p>Shows what would change if you applied a file — like git diff but for live K8s state vs your YAML.</p>
+    </div>
+    <div class="tool">
+      <div class="tool-name">kubeval / kubeconform</div>
+      <p>CLI tools that validate YAML files offline against K8s schemas. Good for CI/CD pipelines.</p>
+    </div>
+    <div class="tool">
+      <div class="tool-name">Lens IDE</div>
+      <p>GUI for Kubernetes. Shows live state of all objects, lets you edit YAML in-browser, great for visualising what's running.</p>
+    </div>
+    <div class="tool">
+      <div class="tool-name">kubectl get -o yaml</div>
+      <p>Get the YAML of any running object: <code>kubectl get deployment my-app -o yaml</code>. Copy an existing working manifest and modify it.</p>
+    </div>
+  </div>
+
+  <div class="note note-green">
+    <span class="note-label">✅ THE REAL WORKFLOW</span>
+    <p><strong>1.</strong> Generate a skeleton: <code>kubectl create ... --dry-run=client -o yaml > file.yaml</code><br>
+    <strong>2.</strong> Open in VSCode with YAML extension — autocomplete fills in what you need<br>
+    <strong>3.</strong> Validate: <code>kubectl apply --dry-run=server -f file.yaml</code><br>
+    <strong>4.</strong> Apply: <code>kubectl apply -f file.yaml</code><br>
+    <strong>5.</strong> Debug: <code>kubectl describe</code> and <code>kubectl logs</code></p>
+  </div>
+</div>
+</section>
+
+<!-- 6. CHEATSHEET -->
+<section id="cheatsheet">
+<div class="container reveal">
+  <div class="sec-label">06 — Quick Reference</div>
+  <h2>The Cheatsheet</h2>
+  <p>Print this or keep it open in a tab. All the apiVersions, kinds, and common field patterns in one place.</p>
+
+  <h3>apiVersion Quick Reference</h3>
+  <div class="qref">
+    <div class="qref-row" style="background:#111;border-bottom:1px solid var(--border);">
+      <span class="qref-key" style="color:var(--muted);">kind</span><span style="color:var(--muted);font-family:'Fira Code';font-size:.75rem;">apiVersion</span>
+    </div>
+    <div class="qref-row"><span class="qref-key">Pod</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--green);">v1</code></div>
+    <div class="qref-row"><span class="qref-key">Service</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--green);">v1</code></div>
+    <div class="qref-row"><span class="qref-key">ConfigMap</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--green);">v1</code></div>
+    <div class="qref-row"><span class="qref-key">Secret</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--green);">v1</code></div>
+    <div class="qref-row"><span class="qref-key">Namespace</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--green);">v1</code></div>
+    <div class="qref-row"><span class="qref-key">PersistentVolumeClaim</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--green);">v1</code></div>
+    <div class="qref-row"><span class="qref-key">PersistentVolume</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--green);">v1</code></div>
+    <div class="qref-row"><span class="qref-key">Deployment</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--amber);">apps/v1</code></div>
+    <div class="qref-row"><span class="qref-key">StatefulSet</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--amber);">apps/v1</code></div>
+    <div class="qref-row"><span class="qref-key">DaemonSet</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--amber);">apps/v1</code></div>
+    <div class="qref-row"><span class="qref-key">Job</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--purple);">batch/v1</code></div>
+    <div class="qref-row"><span class="qref-key">CronJob</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--purple);">batch/v1</code></div>
+    <div class="qref-row"><span class="qref-key">Ingress</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--cyan);">networking.k8s.io/v1</code></div>
+    <div class="qref-row"><span class="qref-key">HorizontalPodAutoscaler</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--cyan);">autoscaling/v2</code></div>
+    <div class="qref-row"><span class="qref-key">StorageClass</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--blue);">storage.k8s.io/v1</code></div>
+    <div class="qref-row"><span class="qref-key">NetworkPolicy</span><code style="font-family:'Fira Code';font-size:.78rem;color:var(--blue);">networking.k8s.io/v1</code></div>
+  </div>
+
+  <h3>Resource Units</h3>
+  <div class="two">
+    <div class="yaml-block">
+      <div class="yaml-header"><span class="file-name">CPU units</span></div>
+      <div class="yaml-body"><pre>
+<span class="y-key">cpu</span>: <span class="y-str">"1"</span>       <span class="y-com"># 1 full core</span>
+<span class="y-key">cpu</span>: <span class="y-str">"0.5"</span>     <span class="y-com"># half a core</span>
+<span class="y-key">cpu</span>: <span class="y-str">"500m"</span>    <span class="y-com"># 500 millicores = 0.5 core</span>
+<span class="y-key">cpu</span>: <span class="y-str">"250m"</span>    <span class="y-com"># 250 millicores = 0.25 core</span>
+<span class="y-key">cpu</span>: <span class="y-str">"100m"</span>    <span class="y-com"># 100 millicores = 0.1 core</span>
+</pre></div>
+    </div>
+    <div class="yaml-block">
+      <div class="yaml-header"><span class="file-name">Memory units</span></div>
+      <div class="yaml-body"><pre>
+<span class="y-key">memory</span>: <span class="y-str">"128Mi"</span>  <span class="y-com"># 128 mebibytes</span>
+<span class="y-key">memory</span>: <span class="y-str">"256Mi"</span>  <span class="y-com"># 256 mebibytes</span>
+<span class="y-key">memory</span>: <span class="y-str">"1Gi"</span>    <span class="y-com"># 1 gibibyte = 1024Mi</span>
+<span class="y-key">memory</span>: <span class="y-str">"4Gi"</span>    <span class="y-com"># 4 gibibytes</span>
+<span class="y-com"># Use Mi/Gi (binary) not M/G (decimal)</span>
+</pre></div>
+    </div>
+  </div>
+
+  <h3>Essential kubectl Commands</h3>
+  <div class="cmd"><span class="prompt">$</span><span class="command">kubectl apply -f file.yaml</span><span class="out">create or update resources from file</span></div>
+  <div class="cmd"><span class="prompt">$</span><span class="command">kubectl apply -f ./directory/</span><span class="out">apply all yaml files in a directory</span></div>
+  <div class="cmd"><span class="prompt">$</span><span class="command">kubectl get pods -n production</span><span class="out">list pods in a specific namespace</span></div>
+  <div class="cmd"><span class="prompt">$</span><span class="command">kubectl describe pod my-pod</span><span class="out">detailed info + events (great for debugging)</span></div>
+  <div class="cmd"><span class="prompt">$</span><span class="command">kubectl logs my-pod -c container-name</span><span class="out">view container logs</span></div>
+  <div class="cmd"><span class="prompt">$</span><span class="command">kubectl exec -it my-pod -- /bin/bash</span><span class="out">shell into a running pod</span></div>
+  <div class="cmd"><span class="prompt">$</span><span class="command">kubectl delete -f file.yaml</span><span class="out">delete everything in the file</span></div>
+  <div class="cmd"><span class="prompt">$</span><span class="command">kubectl get all -n production</span><span class="out">see all resources in a namespace</span></div>
+</div>
+</section>
+
+<footer>
+  <div style="color:var(--green);margin-bottom:.4rem;">kubectl://yaml-guide — Abdullah's Edition</div>
+  <div>The pattern, not the memorisation · You've got this 🚀</div>
+</footer>
+
+<script>
+// Tabs
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('on'));
+  document.getElementById('tab-' + id).classList.add('on');
+  btn.classList.add('on');
+}
+
+// Scroll reveal
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if(e.isIntersecting) { e.target.classList.add('in'); obs.unobserve(e.target); } });
+}, { threshold: 0.08 });
+document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+</script>
+</body>
+</html>
